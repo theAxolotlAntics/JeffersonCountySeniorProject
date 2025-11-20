@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Directories & cache files
 BASE_DIR = Path(__file__).parent
-CACHE_DIR = BASE_DIR / "cachedMaps"
+CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 GEOCODE_CACHE_FILE = CACHE_DIR / "geocode_cache.json"
 
