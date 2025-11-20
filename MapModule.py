@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import folium
 import geopandas as gpd  # for creating the map
 from geopy.geocoders import Nominatim  # for parsing the address into geocoded data
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling for geopy
@@ -99,7 +100,8 @@ def geocode_address(address: str, label: str = "Location", retries: int = 3, del
     return None
 
 
-def create_map(clean_address: str, ID: str, force_refresh: bool = False):
+
+def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path:
     """
     Create (or return cached) HTML map for the given address/ID.
     - clean_address: address string to geocode
@@ -109,7 +111,7 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False):
     """
     # sanitize ID for filename
     safe_id = re.sub(r'[<>:"/\\|?*]', '_', str(ID))
-    filename = f"{safe_id}_Map.html"
+    filename = f"{safe_id}_Map"
     out_path = CACHE_DIR / filename
 
     if out_path.exists() and not force_refresh:
@@ -138,15 +140,44 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False):
     # geocode the address and add pin if successful
     pin = geocode_address(clean_address, label=ID)
     if pin is not None:
-        try:
-            pin.explore(m=folium_map, color="red", marker_kwds={'popup': pin['name'].iat[0]})
-        except Exception as e:
-            logger.warning("Failed to add pin to map: %s", e)
+        lon, lat = pin.geometry.x.iat[0], pin.geometry.y.iat[0]
+        # create folium map centered on the pin
+        folium_map = folium.Map(location=[lat, lon], zoom_start=15)  # adjust zoom_start
+        # add county polygons
+        folium.GeoJson(
+            municipalities,
+            tooltip=folium.GeoJsonTooltip(# this one shows on hover
+                fields=["MUNICIPAL1"], 
+                aliases=["Municipality:"],
+                localize=True,
+                sticky=True
+            ),
+            #popup=folium.GeoJsonPopup( #this one requires clicking
+            #    fields=["MUNICIPAL"],  
+            #    aliases=["Municipality:"],
+            #    localize=True
+            #)
+        ).add_to(folium_map)
+        # add pin
+        folium.Marker([lat, lon], popup=ID).add_to(folium_map)
 
     # save the folium map to cachedMaps
     try:
-        folium_map.save(str(out_path))
+        folium_map.save(str(out_path.with_suffix(".html")))
         logger.info("Saved map to: %s", out_path)
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--window-size=800,600")
+
+        driver = webdriver.Chrome(options=options)
+        driver.get(out_path.with_suffix(".html").as_uri())
+        time.sleep(2)  # wait for tiles to load
+        driver.save_screenshot(str(out_path.with_suffix(".png")))
+        driver.quit()
+
     except Exception as e:
         logger.exception("Failed to save map to %s: %s", out_path, e)
         raise
