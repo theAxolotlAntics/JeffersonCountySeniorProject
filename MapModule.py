@@ -26,8 +26,26 @@ GEOCODE_CACHE_FILE = CACHE_DIR / "geocode_cache.json"
 # Reuse a single Nominatim instance (respect API usage)
 GEOLocator = Nominatim(user_agent="Jefferson County Economic Development", timeout=5)
 
+def addressToKey(address: str):
+    """
+    Normalize an address string into a consistent cache key.
+    - Lowercase
+    - Strip leading/trailing whitespace
+    - Collapse internal whitespace
+    - Remove punctuation that doesn't affect geocoding
+    Returns None if input is invalid.
+    """
+    if not address or not isinstance(address, str):
+        return None
+    # Lowercase and strip
+    key = address.strip().lower()
+    # Collapse multiple spaces
+    key = re.sub(r"\s+", " ", key)
+    # Remove commas/periods for consistency
+    key = re.sub(r"[.,]", "", key)
+    return key
 
-def _load_geocode_cache() -> dict:
+def _load_geocode_cache():
     if GEOCODE_CACHE_FILE.exists():
         try:
             return json.loads(GEOCODE_CACHE_FILE.read_text(encoding="utf-8"))
@@ -36,14 +54,14 @@ def _load_geocode_cache() -> dict:
     return {}
 
 
-def _save_geocode_cache(cache: dict) -> None:
+def _save_geocode_cache(cache: dict):
     try:
         GEOCODE_CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         logger.warning("Failed to write geocode cache: %s", e)
 
 
-def geocode_address(address: str, label: str = "Location", retries: int = 3, delay: float = 1.0) -> Optional[gpd.GeoDataFrame]:
+def geocode_address(address: str, label: str = "Location", retries: int = 3, delay: float = 1.0):
     """
     Geocode an address to a GeoDataFrame point with a 'name' column.
     Will use a persistent JSON cache in cachedMaps/geocode_cache.json to avoid repeated queries.
@@ -53,7 +71,7 @@ def geocode_address(address: str, label: str = "Location", retries: int = 3, del
         logger.debug("Empty or invalid address provided.")
         return None
 
-    key = address.strip().lower()
+    key = addressToKey(address)
     cache = _load_geocode_cache()
 
     if key in cache:
@@ -81,7 +99,7 @@ def geocode_address(address: str, label: str = "Location", retries: int = 3, del
     return None
 
 
-def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path:
+def create_map(clean_address: str, ID: str, force_refresh: bool = False):
     """
     Create (or return cached) HTML map for the given address/ID.
     - clean_address: address string to geocode
