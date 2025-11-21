@@ -1,11 +1,11 @@
-ID,Created,Modified,Reveiwed,ParcelID,Address,City,Zipcode,Municipality,Use,Vacancy,Submitter Name,Submitter Email
-DG001,2023-06-12,2023-07-01,2023-07-15,PA-JEF-001,225 Allegheny Blvd (Sr 36),Brookville,15825-1250,Brookville Borough,Retail,No,Jane Doe,jane.doe@example.com
-DG002,2023-06-15,2023-07-03,2023-07-18,PA-JEF-002,549 Route 28,Brookville,15825-7100,Brookville Borough,Retail,No,John Smith,john.smith@example.com
-DG003,2023-06-18,2023-07-05,2023-07-20,PA-JEF-003,1028 W Mahoning St,Punxsutawney,15767-1233,Punxsutawney Borough,Retail,No,Alice Johnson,alice.johnson@example.com
-DG004,2023-06-20,2023-07-07,2023-07-22,PA-JEF-004,213 Hampton Ave,Punxsutawney,15767-2133,Punxsutawney Borough,Retail,No,Bob Lee,bob.lee@example.com
-DG005,2023-06-22,2023-07-09,2023-07-24,PA-JEF-005,270 W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Clara Kim,clara.kim@example.com
-DG006,2023-06-25,2023-07-11,2023-07-26,PA-JEF-006,8948 Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,Retail,No,David Park,david.park@example.com
-DG007,2023-06-28,2023-07-13,2023-07-28,PA-JEF-007,317 W Main St,Big Run,15715,Big Run Borough,Retail,No,Eva Green,eva.green@example.com
-DG008,2023-07-01,2023-07-15,2023-07-30,PA-JEF-008,12702 Harrison St,Summerville,15864-6336,Summerville Borough,Retail,No,Frank White,frank.white@example.com
-DG009,2023-07-04,2023-07-17,2023-08-01,PA-JEF-009,270 W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Gina Black,gina.black@example.com
-DG010,2023-07-07,2023-07-19,2023-08-03,PA-JEF-010,1249 Main St,Brockway,15824-1633,Brockway Borough,Retail,No,Hank Brown,hank.brown@example.com
+ID,Created,Modified,Reveiwed,ParcelID,StreetNum,Address,City,Zipcode,Municipality,Use,Vacancy,First,Last,Submitter Email
+DG001,2023-06-12,2023-07-01,2023-07-15,PA-JEF-001,225, Allegheny Blvd (Sr 36),Brookville,15825-1250,Brookville Borough,Retail,No,Jane, Doe,jane.doe@example.com
+DG002,2023-06-15,2023-07-03,2023-07-18,PA-JEF-002,549, Route 28,Brookville,15825-7100,Brookville Borough,Retail,No,John, Smith,john.smith@example.com
+DG003,2023-06-18,2023-07-05,2023-07-20,PA-JEF-003,1028, W Mahoning St,Punxsutawney,15767-1233,Punxsutawney Borough,Retail,No,Alice, Johnson,alice.johnson@example.com
+DG004,2023-06-20,2023-07-07,2023-07-22,PA-JEF-004,213, Hampton Ave,Punxsutawney,15767-2133,Punxsutawney Borough,Retail,No,Bob, Lee,bob.lee@example.com
+DG005,2023-06-22,2023-07-09,2023-07-24,PA-JEF-005,270, W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Clara, Kim,clara.kim@example.com
+DG006,2023-06-25,2023-07-11,2023-07-26,PA-JEF-006,8948, Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,Retail,No,David, Park,david.park@example.com
+DG007,2023-06-28,2023-07-13,2023-07-28,PA-JEF-007,317, W Main St,Big Run,15715,Big Run Borough,Retail,No,Eva, Green,eva.green@example.com
+DG008,2023-07-01,2023-07-15,2023-07-30,PA-JEF-008,12702, Harrison St,Summerville,15864-6336,Summerville Borough,Retail,No,Frank, White,frank.white@example.com
+DG009,2023-07-04,2023-07-17,2023-08-01,PA-JEF-009,270, W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Gina, Black,gina.black@example.com
+DG010,2023-07-07,2023-07-19,2023-08-03,PA-JEF-010,1249, Main St,Brockway,15824-1633,Brockway Borough,Retail,No,Hank, Brown,hank.brown@example.com
