@@ -1,11 +1,25 @@
-ID,Created,Modified,Reveiwed,ParcelID,StreetNum,Address,City,Zipcode,Municipality,Use,Vacancy,First,Last,Submitter Email
-DG001,2023-06-12,2023-07-01,2023-07-15,PA-JEF-001,225, Allegheny Blvd (Sr 36),Brookville,15825-1250,Brookville Borough,Retail,No,Jane, Doe,jane.doe@example.com
-DG002,2023-06-15,2023-07-03,2023-07-18,PA-JEF-002,549, Route 28,Brookville,15825-7100,Brookville Borough,Retail,No,John, Smith,john.smith@example.com
-DG003,2023-06-18,2023-07-05,2023-07-20,PA-JEF-003,1028, W Mahoning St,Punxsutawney,15767-1233,Punxsutawney Borough,Retail,No,Alice, Johnson,alice.johnson@example.com
-DG004,2023-06-20,2023-07-07,2023-07-22,PA-JEF-004,213, Hampton Ave,Punxsutawney,15767-2133,Punxsutawney Borough,Retail,No,Bob, Lee,bob.lee@example.com
-DG005,2023-06-22,2023-07-09,2023-07-24,PA-JEF-005,270, W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Clara, Kim,clara.kim@example.com
-DG006,2023-06-25,2023-07-11,2023-07-26,PA-JEF-006,8948, Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,Retail,No,David, Park,david.park@example.com
-DG007,2023-06-28,2023-07-13,2023-07-28,PA-JEF-007,317, W Main St,Big Run,15715,Big Run Borough,Retail,No,Eva, Green,eva.green@example.com
-DG008,2023-07-01,2023-07-15,2023-07-30,PA-JEF-008,12702, Harrison St,Summerville,15864-6336,Summerville Borough,Retail,No,Frank, White,frank.white@example.com
-DG009,2023-07-04,2023-07-17,2023-08-01,PA-JEF-009,270, W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Gina, Black,gina.black@example.com
-DG010,2023-07-07,2023-07-19,2023-08-03,PA-JEF-010,1249, Main St,Brockway,15824-1633,Brockway Borough,Retail,No,Hank, Brown,hank.brown@example.com
+ID,Created,Modified,Reviewed,ParcelID,StreetNum,Address,City,Zipcode,Municipality,Use,Vacancy,First,Last,Submitter Email,ImagePath,Notes
+DG001,6/12/2023,7/1/2023,7/15/2023,PA-JEF-001,225,Allegheny Blvd (Sr 36),Brookville,15825-1250,Brookville Borough,Retail,No,Jane,Doe,jane.doe@example.com,https://drive.google.com/file/d/15_g8yuxj2mnskaLKGH14OcpFUutQSJdo/view,"[2025-11-19 17:48:32] second note
+
+[2025-11-19 17:48:19] note"
+DG002,6/15/2023,7/3/2023,7/18/2023,PA-JEF-002,549, Route 28,Brookville,15825-7100,Brookville Borough,Retail,No,John,Smith,john.smith@example.com,https://drive.google.com/file/d/1w3ORDEUUYSqDouM4qL4TPtETnIMfQ5X4/view,
+DG003,6/18/2023,7/5/2023,7/20/2023,PA-JEF-003,1028,W Mahoning St,Punxsutawney,15767-1233,Punxsutawney Borough,Retail,No,Alice,Johnson,alice.johnson@example.com,,
+DG004,6/20/2023,7/7/2023,7/22/2023,PA-JEF-004,213, Hampton Ave,Punxsutawney,15767-2133,Punxsutawney Borough,Retail,No,Bob,Lee,bob.lee@example.com,,[2025-11-20 10:28:06] Note
+DG005,6/22/2023,7/9/2023,7/24/2023,PA-JEF-005,270,W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Clara,Kim,clara.kim@example.com,,
+DG006,6/25/2023,7/11/2023,7/26/2023,PA-JEF-006,848,Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,Retail,No,David,Park,david.park@example.com,,
+DG007,6/28/2023,7/13/2023,7/28/2023,PA-JEF-007,317,W Main St,Big Run,15715,Big Run Borough,Retail,No,Eva,Green,eva.green@example.com,,"[2025-11-14 09:51:04] test
+
+[2025-11-13 09:46:48] testing
+[2025-11-13 09:46:59] another test
+[2025-11-13 10:02:29] test"
+DG008,7/1/2023,7/15/2023,7/30/2023,PA-JEF-008,12702,Harrison St,Summerville,15864-6336,Summerville Borough,Retail,No,Frank,White,frank.white@example.com,,"[2025-11-13 09:56:41] testing
+[2025-11-13 09:56:58] another test"
+DG009,7/4/2023,7/17/2023,8/1/2023,PA-JEF-009,270,W. Liberty,Sykesville,15865,Sykesville Borough,Retail,No,Gina,Black,gina.black@example.com,,"[2025-11-07 14:28:33] test
+[2025-11-07 14:28:48] test
+[2025-11-07 14:28:55] another test"
+DG010,7/7/2023,7/19/2023,8/3/1972,PA-JEF-010,123,Test St,Brockway,15824-1633,Brockway Borough,Retail,No,Frank,Brown,hank.brown@example.com,,"[2025-11-13 10:19:24] testing note
+
+[2025-11-07 12:56:11] This is a test note
+[2025-11-07 12:56:24] This is another test note
+[2025-11-13 09:42:06] Another Note"
+11,2025-11-20T19:38:27.893084,2025-11-20T19:38:27.893084,11/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025,1/20/2025
