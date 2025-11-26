@@ -150,7 +150,7 @@ class App(tk.Tk):
         ttk.Button(bar, text="Search", command=self.ApplyFilters).pack(side="right", padx=4)
         
         ttk.Button(bar, text="New", command=self.AddProperty).pack(side="left", padx=4)
-        ttk.Button(bar, text="Delete").pack(side="left", padx=4)
+        ttk.Button(bar, text="Delete", command=self.DelProperty).pack(side="left", padx=4)
 
     # --- Filters ---
     #Different filters based on customer needs
@@ -192,6 +192,16 @@ class App(tk.Tk):
         hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscroll=vsb.set, xscroll=hsb.set)
 
+        self.sort = {}
+        
+        def SortCol(col):
+            self.sort[col] = not self.sort.get(col,False) #toggle sort
+            items = [(self.tree.set(k,col),k)for k in self.tree.get_children("")]
+            items.sort(reverse=self.sort[col])
+
+            for index,(_,k) in enumerate(items):
+                self.tree.move(k,"",index)
+                
         #for each column in visible columns, display it as a heading in the tree
         for col in VisibleColumns:
             self.tree.heading(col, text=col)
@@ -510,6 +520,78 @@ class App(tk.Tk):
                 return "float"
             return "str"
 
+ #function that deletes a row from the csv, thus deleting from treeview
+    def DelProperty(self):
+        # get selected items
+        sels = self.tree.selection()
+        if not sels:
+            messagebox.showwarning("Delete", "No row selected to delete.")
+            return
+
+        # ask for confirmation
+        if len(sels) == 1:
+            prompt = "Delete the selected property?"
+        else:
+            prompt = f"Delete the {len(sels)} selected properties?"
+        if not messagebox.askyesno("Confirm delete", prompt):
+            return
+
+        # collect indices (tags) corresponding to DataFrame indices
+        idxs = []
+        for iid in sels:
+            tags = self.tree.item(iid, "tags") or ()
+            if not tags:
+                continue
+            tag = tags[0]
+            try:
+                idx = int(tag)
+            except Exception:
+                # fallback: string index (if your df index is strings)
+                idx = tag
+            idxs.append(idx)
+
+        if not idxs:
+            messagebox.showwarning("Delete", "Could not determine rows to delete.")
+            return
+
+        try:
+            # Drop the rows from the DataFrame (ignore missing)
+            self.df = self.df.drop(index=idxs, errors="ignore")
+
+            # Reset index so everything "pushes up" and indices are contiguous
+            self.df = self.df.reset_index(drop=True)
+
+            # Backup CSV before writing
+            csv_path = CSV_PATH
+            try:
+                if os.path.exists(csv_path):
+                    bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                    os.replace(csv_path, bak_name)
+            except Exception as e:
+                messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
+
+            # Save updated CSV
+            try:
+                self.df.to_csv(csv_path, index=False)
+            except Exception as e:
+                messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
+
+            # Rebuild Treeview contents and _row_ids mapping
+            # remove all existing items
+            for iid in self.tree.get_children():
+                self.tree.delete(iid)
+            self._row_ids = {}
+            for idx, row in self.df.iterrows():
+                vals = [row.get(col, "") for col in VisibleColumns]
+                # ensure strings for display (avoid NaN)
+                vals = [("" if pd.isna(v) else str(v)) for v in vals]
+                iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
+                self._row_ids[idx] = iid
+
+            messagebox.showinfo("Deleted", "Selected property(ies) deleted.")
+        except Exception as e:
+            messagebox.showerror("Delete error", f"Failed to delete row(s): {e}")
+    
     #function that adds appends a new property to csv
     def AddProperty(self):
         new_values = [c for c in self.df.columns]
@@ -972,3 +1054,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
