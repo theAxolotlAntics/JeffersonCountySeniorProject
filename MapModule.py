@@ -72,7 +72,7 @@ def geocode_address(address: str, label: str = "Location", retries: int = 3, del
         logger.debug("Empty or invalid address provided.")
         return None
 
-    key = addressToKey(address)
+    key = label
     cache = _load_geocode_cache()
 
     if key in cache:
@@ -113,9 +113,11 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
     safe_id = re.sub(r'[<>:"/\\|?*]', '_', str(ID))
     filename = f"{safe_id}_Map"
     out_path = CACHE_DIR / filename
+    html_path = out_path.with_suffix(".html")
+    png_path = out_path.with_suffix(".png")
 
-    if out_path.exists() and not force_refresh:
-        logger.info("Using cached map: %s", out_path)
+    if html_path.exists() and png_path.exists() and not force_refresh:
+        logger.info("Using cached map: %s", html_path)
         return out_path
 
     shapefile_path = BASE_DIR / "resources" / "shapeData" / "PaMunicipalities2025_07.shp"

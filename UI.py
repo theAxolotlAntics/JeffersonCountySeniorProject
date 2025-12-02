@@ -3,6 +3,7 @@
 # Date: 9/3/25
 # Purpose: Display properties from CSV and show images (local / http / Google RecentError)
 
+from cProfile import label
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, UnidentifiedImageError, ImageOps
@@ -12,7 +13,14 @@ import io
 import re
 import os
 from datetime import datetime
+#added improrts for image and mapping
+from pathlib import Path
+import webbrowser
+from MapModule import create_map
 
+# Define global paths
+BASE_DIR = Path(__file__).parent
+CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
     # if url is not a valid string or not a google drive link, return
@@ -468,10 +476,35 @@ class App(tk.Tk):
             ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=i, column=1, sticky="w", padx=6, pady=4)
         ScrollFrame.grid_columnconfigure(1, weight=1)
 
-        #place holder right frame that will hold html page of image 
+        #right frame that will hold html page of image 
+        #Newly implemented right frame should get the mapping functionality working??
         RightFrame = ttk.Frame(win, relief="solid", padding=5)
-        RightFrame.grid(row=1, column=1, rowspan =2, sticky="nsew", padx=5, pady=5)
-        tk.Label(RightFrame, text="Another Box", font=("Arial", 12, "bold")).pack()
+        RightFrame.grid(row=1, column=1, rowspan=2, sticky="nsew", padx=5, pady=5)
+
+        # Title label inside RightFrame
+        tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
+        #generate map html and png paths if none exist
+        map_id = row.get("ID")
+        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA"
+        out = create_map(map_address, ID=str(map_id))
+        MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
+        MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
+        # Load PNG into Tkinter inside RightFrame
+        img = Image.open(MAP_PNG)
+        tk_img = ImageTk.PhotoImage(img)
+
+        label = tk.Label(RightFrame, image=tk_img)
+        label.image = tk_img
+        label.pack(fill="both", expand=True)
+
+        # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
+
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
+
+
 
         #place holder right frame that will hold html page of image 
         # NoteFrame already created:
