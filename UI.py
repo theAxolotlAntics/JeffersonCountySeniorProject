@@ -1,7 +1,8 @@
-# Home page: filter by vacancy, abandoned, commercial, residential
-# Name: Gannon Kearney
-# Date: 9/3/25
-# Purpose: Display properties from CSV and show images (local / http / Google RecentError)
+# Name: Gannon Kearney, Brunner Good, Isaac Wagner
+# Created: 9/3/25
+# Last Updated: 12/3/25
+# Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
+    #Also displays the image (which is a hyperlink in the csv) using PIL.
 
 from cProfile import label
 import tkinter as tk
@@ -13,7 +14,7 @@ import io
 import re
 import os
 from datetime import datetime
-#added improrts for image and mapping
+#added imporrts for image and mapping
 from pathlib import Path
 import webbrowser
 from MapModule import create_map
@@ -1087,4 +1088,5 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
 
