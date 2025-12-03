@@ -1080,13 +1080,11 @@ class App(tk.Tk):
         btnframe.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Button(btnframe, text="Add", command=OnAdd).pack(side="right", padx=6)
         ttk.Button(btnframe, text="Cancel", command=OnCancel).pack(side="right", padx=6)
-
-
-
-
+        
 # --- Run App ---
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
 
 
