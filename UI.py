@@ -187,6 +187,7 @@ class App(tk.Tk):
         #apply and reset filters call respective commands
         ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
         ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
+        ttk.Checkbutton(frm, text="Full Map").grid(row=0, column=7, sticky="w")
 
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
@@ -1085,6 +1086,7 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
 
 
 
