@@ -10,6 +10,9 @@ from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling fo
 from shapely.geometry import Point  # for displaying the pinned location on the map
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
 import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
 
 #@author:  Brunner Good
 
@@ -61,45 +64,36 @@ def _save_geocode_cache(cache: dict):
     except Exception as e:
         logger.warning("Failed to write geocode cache: %s", e)
 
-
-def geocode_address(address: str, label: str = "Location", retries: int = 3, delay: float = 1.0):
-    """
-    Geocode an address to a GeoDataFrame point with a 'name' column.
-    Will use a persistent JSON cache in cachedMaps/geocode_cache.json to avoid repeated queries.
-    Returns None if geocoding fails.
-    """
+def geocode_address(address: str, label: str, retries: int = 3, delay: float = 1.0):
     if not address or not isinstance(address, str):
         logger.debug("Empty or invalid address provided.")
         return None
 
     key = label
-    cache = _load_geocode_cache()
+    cache = _load_geocode_cache()  # load existing dict
 
     if key in cache:
         lon, lat = cache[key]["lon"], cache[key]["lat"]
         logger.debug("Geocode cache hit for address: %s", address)
-        return gpd.GeoDataFrame([{"geometry": Point(lon, lat), "name": label}], crs="EPSG:4326")
+        return {"lon": lon, "lat": lat}  # return simple dict
 
-    # Attempt geocoding with retries + exponential backoff
     for attempt in range(retries):
         try:
             location = GEOLocator.geocode(address)
             if location:
                 lon, lat = location.longitude, location.latitude
-                cache[key] = {"lon": lon, "lat": lat}
-                _save_geocode_cache(cache)
+                cache[key] = {"lon": lon, "lat": lat}  # add new entry
+                _save_geocode_cache(cache)            # save full dict
                 logger.info("Geocoded address '%s' -> (%s, %s)", address, lat, lon)
-                return gpd.GeoDataFrame([{"geometry": Point(lon, lat), "name": label}], crs="EPSG:4326")
+                return {"lon": lon, "lat": lat}
             else:
                 logger.info("Address not found: %s", address)
                 return None
         except (GeocoderTimedOut, GeocoderUnavailable) as e:
             logger.warning("Geocode attempt %d/%d failed for %s: %s", attempt + 1, retries, address, e)
-            time.sleep(delay * (2 ** attempt))  # exponential backoff
+            time.sleep(delay * (2 ** attempt))
     logger.error("Failed to geocode after %d attempts: %s", retries, address)
     return None
-
-
 
 def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path:
     """
@@ -142,9 +136,9 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
     # geocode the address and add pin if successful
     pin = geocode_address(clean_address, label=ID)
     if pin is not None:
-        lon, lat = pin.geometry.x.iat[0], pin.geometry.y.iat[0]
-        # create folium map centered on the pin
-        folium_map = folium.Map(location=[lat, lon], zoom_start=15)  # adjust zoom_start
+        lon, lat = pin["lon"], pin["lat"] 
+        folium_map = folium.Map(location=[lat, lon], zoom_start=15)
+        folium.Marker([lat, lon], popup=ID).add_to(folium_map)
         # add county polygons
         folium.GeoJson(
             municipalities,
@@ -162,14 +156,14 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
         ).add_to(folium_map)
         # add pin
         folium.Marker([lat, lon], popup=ID).add_to(folium_map)
-
+    else:
+        return None  # could not geocode address      
+        
     # save the folium map to cachedMaps
     try:
         folium_map.save(str(out_path.with_suffix(".html")))
         logger.info("Saved map to: %s", out_path)
-        from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-
+        # Screenshot to PNG
         options = Options()
         options.add_argument("--headless")
         options.add_argument("--window-size=800,600")
@@ -186,4 +180,62 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
 
     return out_path
 
+def generate_full_map(geocode_cache):
+    """
+    Creates a map with all addresses in the geocode_cache dict
+    """
+    filename = "Full_Map"
+    out_path = CACHE_DIR / filename
+    shapefile_path = BASE_DIR / "resources" / "shapeData" / "PaMunicipalities2025_07.shp"
+    if not shapefile_path.exists():
+        raise FileNotFoundError(f"Shapefile not found: {shapefile_path}")
 
+    # Read shapefile and filter to Jefferson county
+    municipalities = gpd.read_file(shapefile_path).to_crs(epsg=4326)
+    if 'COUNTY_NAM' in municipalities.columns:
+        municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
+
+    # --- Convert dict → GeoDataFrame ---
+    records = []
+    for addr, coords in geocode_cache.items():
+        records.append({
+            "name": addr,
+            "lon": coords["lon"],
+            "lat": coords["lat"],
+            "geometry": Point(coords["lon"], coords["lat"])
+        })
+    pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
+
+    # Base map centered on county
+    folium_map = folium.Map(location=[41.16, -79.06], zoom_start=10)
+
+    # Add county polygons
+    folium.GeoJson(
+        municipalities,
+        tooltip=folium.GeoJsonTooltip(
+            fields=["MUNICIPAL1"],
+            aliases=["Municipality:"],
+            localize=True,
+            sticky=True
+        )
+    ).add_to(folium_map)
+
+    # --- Add pins from GeoDataFrame ---
+    for _, row in pins_gdf.iterrows():
+        folium.Marker([row["lat"], row["lon"]], popup=row["name"]).add_to(folium_map)
+
+    # Save HTML
+    html_path = out_path.with_suffix(".html")
+    folium_map.save(str(html_path))
+
+    # Screenshot to PNG
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--window-size=800,600")
+    driver = webdriver.Chrome(options=options)
+    driver.get(html_path.as_uri())
+    time.sleep(2)
+    driver.save_screenshot(str(out_path.with_suffix(".png")))
+    driver.quit()
+
+    return out_path.with_suffix(".png")

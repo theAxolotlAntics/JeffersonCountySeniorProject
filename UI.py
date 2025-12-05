@@ -5,6 +5,7 @@
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
 from cProfile import label
+from logging import root
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, UnidentifiedImageError, ImageOps
@@ -17,11 +18,12 @@ from datetime import datetime
 #added imporrts for image and mapping
 from pathlib import Path
 import webbrowser
-from MapModule import create_map
+from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
 
 # Define global paths
 BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
+
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
     # if url is not a valid string or not a google drive link, return
@@ -96,7 +98,7 @@ if not os.path.exists(CSV_PATH):
         "Created": [datetime.now().isoformat()],
         "Modified": [datetime.now().isoformat()],
         "ParcelID": ["0001"],
-        "StreetNum": ["123"],
+        "Property Address Number:": ["123"],
         "Address": ["Main St"],
         "City": ["Brookville"],
         "First": ["John"],
@@ -138,6 +140,7 @@ class App(tk.Tk):
         self.BuildFilters()
         self.BuildTree()
         self.ShowTree(self.df)
+        
 
     # --- Menu ---
     def CreateMenu(self): #create the menubar.  This appears in the top left with an exit option
@@ -167,6 +170,7 @@ class App(tk.Tk):
     # --- Filters ---
     #Different filters based on customer needs
     def BuildFilters(self):
+        
         frm = ttk.LabelFrame(self, text="Filters & Sort", padding=8)
         frm.pack(side="top", fill="x", padx=8, pady=(0, 8))
         self.BlightedFilter = tk.BooleanVar(value=False) #blighted property is false by default
@@ -188,10 +192,55 @@ class App(tk.Tk):
         self.township.grid(row=0, column=4, sticky="w", padx=6)
 
         #apply and reset filters call respective commands
+        self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
         ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
-        ttk.Checkbutton(frm, text="Full Map").grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Regen Map").grid(row=0, column=8, sticky="w")
+        ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
+        ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
+
+    #This fuction will create a map with all the adresses in the dataframe
+    def CreateFullMap(self):
+        MAP_HTML = CACHE_DIR / "full_Map.html"
+        cache = _load_geocode_cache()
+
+        for index, row in self.df.iterrows():
+            address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+            map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            coords = geocode_address(address, label=map_id)
+            if coords:
+                cache[map_id] = coords  
+            else:
+                address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                if coords:
+                    cache[map_id] = coords  
+                else:
+                    address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                    map_id = f"{row.get('City:','')}"
+                    if coords:
+                        cache[map_id] = coords  
+
+        # Save merged cache 
+        _save_geocode_cache(cache)
+
+        # Generate map with all pins
+        png_path = generate_full_map(cache)
+
+        # Show in Tkinter window
+        new_win = tk.Toplevel(self)
+        new_win.title("Full Map of All Properties")
+
+        img = Image.open(png_path)
+        photo = ImageTk.PhotoImage(img)
+        label = tk.Label(new_win, image=photo)
+        label.image = photo
+        label.pack(padx=20, pady=20)
+                # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
+
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
 
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
@@ -313,7 +362,7 @@ class App(tk.Tk):
 
         win = tk.Toplevel(self)
         #the title of the window is the address of the property (as requested)
-        win.title(f"Property Address: {row.get('StreetNum','')} {row.get('Address','')}")
+        win.title(f"Property Address: {row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}")
         win.geometry("800x600") #minimum size of the window
         win.minsize(400, 300)
         win.columnconfigure(0, weight=1)
@@ -496,9 +545,17 @@ class App(tk.Tk):
         # Title label inside RightFrame
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         #generate map html and png paths if none exist
-        map_id = row.get("ID")
-        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, {row.get('Zipcode','')}, PA, USA"
-        out = create_map(map_address, ID=str(map_id))
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+        out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+        if out is None:
+            map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+            out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+            if out is None:
+                map_id = f"{row.get('City:','')}"
+                map_address = f"{row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+                out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
         MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
         MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
         # Load PNG into Tkinter inside RightFrame
@@ -803,7 +860,7 @@ class App(tk.Tk):
 
         edit_win = tk.Toplevel(self)
             #open a new window with details about the property
-        edit_win.title(f"Edit Property Address: {row.get('StreetNum','')} {row.get('Address','')}")
+        edit_win.title(f"Edit Property Address: {row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}")
         edit_win.geometry("620x520") #new window opens 
         edit_win.minsize(420, 300) #minimum size of window
 
