@@ -22,7 +22,6 @@ from MapModule import create_map
 # Define global paths
 BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
-
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
     # if url is not a valid string or not a google drive link, return
@@ -34,7 +33,7 @@ def FindLinkFormat(url: str):
     if "drive.google.com/uc?" in url:
         candidates.append(url)
 
-    #url may contain the phrase /d/
+    #url may end in /d/
     m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
     if m:
         fid = m.group(1)
@@ -86,14 +85,8 @@ def FindImageFromURL(url: str, timeout=10):
 
 # ---- Data ----
 
-
-
-#--------------------------------------------------------------------------------------------------------------------------
-
-# csv that is being read - in the same folder as the program
+# csv that is being read
 CSV_PATH = "Blight Mitigation Data.csv"
-
-#----------------------------------------------------------------------------------------------------------------------------
 
 
 if not os.path.exists(CSV_PATH):
@@ -117,24 +110,20 @@ df = pd.read_csv(CSV_PATH)
 Title = "Blight Inventory"
 
 # columns wanted on the main page
-#StreeNum and Address are seperated for ease of filtering
 VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last", "Date of Property Review:",
                       "Parcel ID, if known:", "Property Address Number:", "Property Address Street Name:",
                       "City:", "Zipcode:", "Municipality:", "Property Blighted?", "Commercial", "Residential", "Vacant Property:", "Submitter's Name:",
                       "Submitter's Email or Phone Number (this information will be used to collect any critical information or clear up any discrepancies)"]
-                      
 
 # columns displayed on selected property page (skip last column if image link etc)
 hidden_columns = [col for col in df.columns[:-1] if col not in VisibleColumns]
 
-# Citys and Municipalitys in Jefferson County
-Citys = ["Big Run", "Brockway", "Brookville", "Corsica", "Falls Creek", "Punxsutawney",
+# boroughs and townships in Jefferson County
+Boroughs = ["Big Run", "Brockway", "Brookville", "Corsica", "Falls Creek", "Punxsutawney",
             "Reynoldsville", "Summerville", "Sykesville", "Timblin", "Worthville"]
-Municipalitys = ["Barnett", "Beaver", "Bell", "Clover", "Eldred", "Gaskill", "Heath", "Henderson",
+Townships = ["Barnett", "Beaver", "Bell", "Clover", "Eldred", "Gaskill", "Heath", "Henderson",
              "Knox", "McCalmont", "Oliver", "Perry", "Pine Creek", "Polk", "Porter", "Ringgold",
              "Rose", "Snyder", "Union", "Warsaw", "Washington", "Winslow", "Young"]
-
-Uses = ["Commercial","Residential"]
 
 # ---- App ----
 class App(tk.Tk):
@@ -181,27 +170,28 @@ class App(tk.Tk):
         frm = ttk.LabelFrame(self, text="Filters & Sort", padding=8)
         frm.pack(side="top", fill="x", padx=8, pady=(0, 8))
         self.BlightedFilter = tk.BooleanVar(value=False) #blighted property is false by default
+        self.UseFilter = tk.BooleanVar(value=False) #use (commerical or residential) is deselected
         self.VacancyFilter = tk.BooleanVar(value=False) #vacancy (true or false) is false by default
 
         ttk.Checkbutton(frm, text="Blighted", variable=self.BlightedFilter).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(frm, text="Vacancy", variable=self.VacancyFilter).grid(row=0, column=1, sticky="w")
-        self.use = ttk.Combobox(frm,values=["Both"] + Uses, state="readonly")
-        self.use.set("Both")
-        self.use.grid(row=0,column=2, sticky="w", padx=6)
+        ttk.Checkbutton(frm, text="Use", variable=self.UseFilter).grid(row=0, column=1, sticky="w")
+        ttk.Checkbutton(frm, text="Vacancy", variable=self.VacancyFilter).grid(row=0, column=2, sticky="w")
 
-        #using all of the Citys, display them in a drop down list, with all appearing first
-        self.City = ttk.Combobox(frm, values=["City"] + Citys, state="readonly")
-        self.City.set("City") #all is default
-        self.City.grid(row=0, column=3, sticky="w", padx=6)
+        #using all of the boroughs, display them in a drop down list, with all appearing first
+        self.borough = ttk.Combobox(frm, values=["All"] + Boroughs, state="readonly")
+        self.borough.set("All") #all is default
+        self.borough.grid(row=0, column=3, sticky="w", padx=6)
 
-        #using all of the Municipalitys, display in a dropdown with all defaulted
-        self.Municipality = ttk.Combobox(frm, values=["Municipality"] + Municipalitys, state="readonly")
-        self.Municipality.set("Municipality")
-        self.Municipality.grid(row=0, column=4, sticky="w", padx=6)
+        #using all of the townships, display in a dropdown with all defaulted
+        self.township = ttk.Combobox(frm, values=["All"] + Townships, state="readonly")
+        self.township.set("All")
+        self.township.grid(row=0, column=4, sticky="w", padx=6)
 
         #apply and reset filters call respective commands
         ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
         ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
+        ttk.Checkbutton(frm, text="Full Map").grid(row=0, column=7, sticky="w")
+        ttk.Checkbutton(frm, text="Regen Map").grid(row=0, column=8, sticky="w")
 
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
@@ -225,7 +215,7 @@ class App(tk.Tk):
             def tryNum(x):
                 try:
                     return float(x)
-                except Exception: #incase the contents are not able to be caste
+                except Exception: #incase the contents are not able to be casted
                     return x
             items.sort(key=lambda t:tryNum(t[0]), reverse=self.sort[col])
 
@@ -267,30 +257,27 @@ class App(tk.Tk):
     def ApplyFilters(self, event=None):
         #copy original df
         data = self.df.copy()
-        if self.City.get() != "City" and "City:" in data.columns:
-            #grab the City filter if it is not all
-            data = data[data["City:"] == self.City.get()]
-        if self.Municipality.get() != "Municipality" and "Municipality:" in data.columns:
-            #grab the Municipality if it is not all
-            data = data[data["Municipality:"] == self.Municipality.get()]
-        if self.BlightedFilter.get() and "Property Blighted?" in data.columns:
+        if self.borough.get() != "All":
+            #grab the borough filter if it is not all
+            data = data[data["City"] == self.borough.get()]
+        if self.township.get() != "All" and "Township" in data.columns:
+            #grab the township if it is not all
+            data = data[data["Township"] == self.township.get()]
+        if self.BlightedFilter.get() and "Blighted" in data.columns:
             #See if the blighted filter is selected
-            data = data[data["Property Blighted?"] == True]
-        if self.use.get() != "Both" and ("Commercial" and "Residential") in data.columns:
-            #grab the use if it is not all
-            if self.use.get() == "Commercial":
-                data = data[data["Commercial"] == True]
-            elif self.use.get() == "Residential":
-               data = data[data["Residential"] == True]
-        if self.VacancyFilter.get() and "Vacant Property:" in data.columns:
+            data = data[data["Blighted"] == True]
+        if self.UseFilter.get() and "Use" in data.columns:
+            #See if the use filter is selected
+            data = data[data["Use"] == True]
+        if self.VacancyFilter.get() and "Vacancy" in data.columns:
             #see if the vacanct filter is selected
-            data = data[data["Vacant Property:"] == True]
+            data = data[data["Vacancy"] == True]
 
         #grab the contents of the search bar and strip it of white space and lowercase the contents
         query = self.SearchInput.get().strip().lower()
         if query:
             mask = data["Address"].astype(str).str.lower().str.contains(query)
-            for col in ["ParcelID", "Owner", "Created", "Modified", "StreetNum", "City", "First", "Last"]:
+            for col in VisibleColumns:
                 if col in data.columns:
                     #if the contents of the search bar are contained at all in any of the values of the columns
                     mask |= data[col].astype(str).str.lower().str.contains(query)
@@ -301,10 +288,10 @@ class App(tk.Tk):
 
     def ResetFilters(self):
         #reset all filters and earch bars to default values
-        self.City.set("City")
-        self.Municipality.set("Municipality")
+        self.borough.set("All")
+        self.township.set("All")
         self.BlightedFilter.set(False)
-        self.use.set("Use")
+        self.UseFilter.set(False)
         self.VacancyFilter.set(False)
         self.SearchInput.set("")
         self.ShowTree(self.df) #show original df
@@ -510,7 +497,7 @@ class App(tk.Tk):
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         #generate map html and png paths if none exist
         map_id = row.get("ID")
-        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA"
+        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, {row.get('Zipcode','')}, PA, USA"
         out = create_map(map_address, ID=str(map_id))
         MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
         MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
