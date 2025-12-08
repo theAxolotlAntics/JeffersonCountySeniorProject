@@ -13,6 +13,14 @@ import io
 import re
 import os
 from datetime import datetime
+#added imporrts for image and mapping
+from pathlib import Path
+import webbrowser
+from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
+
+# Define global paths
+BASE_DIR = Path(__file__).parent
+CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
@@ -197,10 +205,55 @@ class App(tk.Tk):
         self.township.grid(row=0, column=4, sticky="w", padx=6)
 
         #apply and reset filters call respective commands
+        self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
         ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
-        ttk.Radiobutton(frm, text="Full Map").grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Regen Map").grid(row=0, column=8, sticky="w")
+        ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
+        ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
+
+    #This fuction will create a map with all the adresses in the dataframe
+    def CreateFullMap(self):
+        MAP_HTML = CACHE_DIR / "full_Map.html"
+        cache = _load_geocode_cache()
+
+        for index, row in self.df.iterrows():
+            address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+            map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            coords = geocode_address(address, label=map_id)
+            if coords:
+                cache[map_id] = coords  
+            else:
+                address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                if coords:
+                    cache[map_id] = coords  
+                else:
+                    address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                    map_id = f"{row.get('City:','')}"
+                    if coords:
+                        cache[map_id] = coords  
+
+        # Save merged cache 
+        _save_geocode_cache(cache)
+
+        # Generate map with all pins
+        png_path = generate_full_map(cache)
+
+        # Show in Tkinter window
+        new_win = tk.Toplevel(self)
+        new_win.title("Full Map of All Properties")
+
+        img = Image.open(png_path)
+        photo = ImageTk.PhotoImage(img)
+        label = tk.Label(new_win, image=photo)
+        label.image = photo
+        label.pack(padx=20, pady=20)
+                # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
+
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
 
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
@@ -483,10 +536,40 @@ class App(tk.Tk):
             ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=i, column=1, sticky="w", padx=6, pady=4)
         ScrollFrame.grid_columnconfigure(1, weight=1)
 
-        #place holder right frame that will hold html page of image 
+#Newly implemented right frame should get the mapping functionality working??
         RightFrame = ttk.Frame(win, relief="solid", padding=5)
-        RightFrame.grid(row=1, column=1, rowspan =2, sticky="nsew", padx=5, pady=5)
-        tk.Label(RightFrame, text="Another Box", font=("Arial", 12, "bold")).pack()
+        RightFrame.grid(row=1, column=1, rowspan=2, sticky="nsew", padx=5, pady=5)
+
+        # Title label inside RightFrame
+        tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
+        #generate map html and png paths if none exist
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+        out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+        if out is None:
+            map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+            out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+            if out is None:
+                map_id = f"{row.get('City:','')}"
+                map_address = f"{row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+                out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+        MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
+        MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
+        # Load PNG into Tkinter inside RightFrame
+        img = Image.open(MAP_PNG)
+        tk_img = ImageTk.PhotoImage(img)
+
+        label = tk.Label(RightFrame, image=tk_img)
+        label.image = tk_img
+        label.pack(fill="both", expand=True)
+
+        # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
+
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
 
         # NoteFrame for notes
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
