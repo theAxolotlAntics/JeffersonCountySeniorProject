@@ -1,13 +1,11 @@
-# Name: Gannon Kearney, Brunner Good, Isaac Wagner
+# Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 12/5/25
+# Last Updated: 12/8/25
 # Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
-from cProfile import label
-from logging import root
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, UnidentifiedImageError, ImageOps
 import pandas as pd
 import requests
@@ -15,14 +13,6 @@ import io
 import re
 import os
 from datetime import datetime
-#added imporrts for image and mapping
-from pathlib import Path
-import webbrowser
-from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
-
-# Define global paths
-BASE_DIR = Path(__file__).parent
-CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
@@ -88,17 +78,32 @@ def FindImageFromURL(url: str, timeout=10):
 # ---- Data ----
 
 # csv that is being read
-CSV_PATH = "Blight Mitigation Data.csv"
+CSV_PATH = "DummyData.csv"
 
+def choose_csv_path():
+    #Prompt the user to pick a CSV file. If they cancel, fall back to DummyData.csv.
+    root = tk.Tk()
+    root.withdraw()
+    path = filedialog.askopenfilename(
+        title="Select CSV file",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    root.destroy()
+    return path
 
+# Let the user choose a CSV file first
+user_path = choose_csv_path()
+if user_path:
+    CSV_PATH = user_path
+
+# If chosen (or default) CSV does not exist, create a minimal one so the app still runs
 if not os.path.exists(CSV_PATH):
-    # create a minimal sample CSV so the app runs if file missing
     sample = pd.DataFrame({
         "ID": [1],
         "Created": [datetime.now().isoformat()],
         "Modified": [datetime.now().isoformat()],
         "ParcelID": ["0001"],
-        "Property Address Number:": ["123"],
+        "StreetNum": ["123"],
         "Address": ["Main St"],
         "City": ["Brookville"],
         "First": ["John"],
@@ -140,7 +145,6 @@ class App(tk.Tk):
         self.BuildFilters()
         self.BuildTree()
         self.ShowTree(self.df)
-        
 
     # --- Menu ---
     def CreateMenu(self): #create the menubar.  This appears in the top left with an exit option
@@ -150,27 +154,28 @@ class App(tk.Tk):
         menubar.add_cascade(label="File", menu=filemenu)
         self.config(menu=menubar)
 
-      # --- Toolbar ---
+    # --- Toolbar ---
     def CreateToolbar(self): #creates a tool bar with navigation buttons
         bar = ttk.Frame(self, padding=(8, 4))
         bar.pack(side="top", fill="x")
         self.SearchInput = tk.StringVar()
-        #if an entry is place in Entry, it will call SearchInput
+        # Entry for search
         entry = ttk.Entry(bar, textvariable=self.SearchInput, width=30)
         entry.pack(side="right", padx=4)
 
-        #bind search bar to the apply filter command
-        entry.bind("<Return>", self.ApplyFilters)
+        # Pressing Enter in the search box will also apply filters
+        entry.bind("<Return>", lambda e: self.ApplyFilters())
+
         #The Apply filters take into account, the filters selected and the search bar contents
         ttk.Button(bar, text="Search", command=self.ApplyFilters).pack(side="right", padx=4)
         
-        ttk.Button(bar, text="New", command=self.AddProperty).pack(side="left", padx=4)
-        ttk.Button(bar, text="Delete", command=self.DelProperty).pack(side="left", padx=4)
+        ttk.Button(bar, text="New").pack(side="left", padx=4)
+        ttk.Button(bar, text="Edit").pack(side="left", padx=4)
+        ttk.Button(bar, text="Delete").pack(side="left", padx=4)
 
     # --- Filters ---
     #Different filters based on customer needs
     def BuildFilters(self):
-        
         frm = ttk.LabelFrame(self, text="Filters & Sort", padding=8)
         frm.pack(side="top", fill="x", padx=8, pady=(0, 8))
         self.BlightedFilter = tk.BooleanVar(value=False) #blighted property is false by default
@@ -192,89 +197,27 @@ class App(tk.Tk):
         self.township.grid(row=0, column=4, sticky="w", padx=6)
 
         #apply and reset filters call respective commands
-        self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
         ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
-        ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
-
-    #This fuction will create a map with all the adresses in the dataframe
-    def CreateFullMap(self):
-        MAP_HTML = CACHE_DIR / "full_Map.html"
-        cache = _load_geocode_cache()
-
-        for index, row in self.df.iterrows():
-            address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-            map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            coords = geocode_address(address, label=map_id)
-            if coords:
-                cache[map_id] = coords  
-            else:
-                address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-                if coords:
-                    cache[map_id] = coords  
-                else:
-                    address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                    map_id = f"{row.get('City:','')}"
-                    if coords:
-                        cache[map_id] = coords  
-
-        # Save merged cache 
-        _save_geocode_cache(cache)
-
-        # Generate map with all pins
-        png_path = generate_full_map(cache)
-
-        # Show in Tkinter window
-        new_win = tk.Toplevel(self)
-        new_win.title("Full Map of All Properties")
-
-        img = Image.open(png_path)
-        photo = ImageTk.PhotoImage(img)
-        label = tk.Label(new_win, image=photo)
-        label.image = photo
-        label.pack(padx=20, pady=20)
-                # Button to open full interactive map in browser
-        def open_in_browser(event=None):
-            webbrowser.open(MAP_HTML.as_uri())
-
-        # Bind left mouse click on the label to open_in_browser
-        label.bind("<Button-1>", open_in_browser)
+        ttk.Radiobutton(frm, text="Full Map").grid(row=0, column=7, sticky="w")
+        ttk.Checkbutton(frm, text="Regen Map").grid(row=0, column=8, sticky="w")
 
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
     def BuildTree(self):
         container = ttk.Frame(self)
         container.pack(side="top", fill="both", expand=True, padx=8, pady=8)
-            #take the values of the headings in visible columns and display them
+        #take the values of the headings in visible columns and display them
         self.tree = ttk.Treeview(container, columns=VisibleColumns, show="headings")
-        
-            #have a vertical scroll bar and horizontal scroll bar for navigation
+        #have a vertical scroll bar and horizontal scroll bar for navigation
         vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
         hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscroll=vsb.set, xscroll=hsb.set)
 
-        self.sort = {}
-        
-        def SortCol(col):
-            self.sort[col] = not self.sort.get(col,False) #toggle sort
-            items = [(self.tree.set(k,col),k)for k in self.tree.get_children("")]
-
-            def tryNum(x):
-                try:
-                    return float(x)
-                except Exception: #incase the contents are not able to be casted
-                    return x
-            items.sort(key=lambda t:tryNum(t[0]), reverse=self.sort[col])
-
-            for index,(_,k) in enumerate(items):
-                self.tree.move(k,"",index)
-                
         #for each column in visible columns, display it as a heading in the tree
         for col in VisibleColumns:
-            self.tree.heading(col, text=col, command= lambda c=col: SortCol(c))
-            self.tree.column(col, width=150, anchor="w", minwidth =110)
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=150, anchor="w")
 
         #place the grid and scrollbars
         self.tree.grid(row=0, column=0, sticky="nsew")
@@ -303,7 +246,7 @@ class App(tk.Tk):
                 self.tree.detach(iid) #hides rows not filtered results
 
     # --- Filters processing ---
-    def ApplyFilters(self, event=None):
+    def ApplyFilters(self):
         #copy original df
         data = self.df.copy()
         if self.borough.get() != "All":
@@ -322,14 +265,21 @@ class App(tk.Tk):
             #see if the vacanct filter is selected
             data = data[data["Vacancy"] == True]
 
-        #grab the contents of the search bar and strip it of white space and lowercase the contents
+        # grab the contents of the search bar, strip whitespace, and lowercase
         query = self.SearchInput.get().strip().lower()
         if query:
-            mask = data["Address"].astype(str).str.lower().str.contains(query)
-            for col in VisibleColumns:
-                if col in data.columns:
-                    #if the contents of the search bar are contained at all in any of the values of the columns
-                    mask |= data[col].astype(str).str.lower().str.contains(query)
+            # start with all False
+            mask = pd.Series(False, index=data.index)
+
+            # search across ALL columns, converting to string and ignoring case
+            for col in data.columns:
+                try:
+                    col_str = data[col].astype(str).str.lower()
+                    mask |= col_str.str.contains(query, na=False)
+                except Exception:
+                    # if a column somehow fails conversion, just skip it
+                    pass
+
             data = data[mask]
 
         #show everything that accounts for all filters
@@ -362,7 +312,7 @@ class App(tk.Tk):
 
         win = tk.Toplevel(self)
         #the title of the window is the address of the property (as requested)
-        win.title(f"Property Address: {row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}")
+        win.title(f"Property Address: {row.get('StreetNum','')} {row.get('Address','')}")
         win.geometry("800x600") #minimum size of the window
         win.minsize(400, 300)
         win.columnconfigure(0, weight=1)
@@ -423,6 +373,7 @@ class App(tk.Tk):
             WinW = max(300, win.winfo_width())
             MaxW = WinW - 40 #subtract padding
             return MaxW, MaxH
+
         #function resizes the image, essentially bootstrapping
         def ResizeImage(event=None):
             nonlocal OriginalImage
@@ -487,15 +438,11 @@ class App(tk.Tk):
                 return
             ImageLabel._last_size = (TargetW, TargetH)
 
+            # resize the image
             try:
                 resized = OriginalImage.resize((TargetW, TargetH), Image.LANCZOS)
             except Exception:
-                # fallback to thumbnail (in-place) if resize fails
-                try:
-                    resized = OriginalImage.copy()
-                    resized.thumbnail((TargetW, TargetH), Image.LANCZOS)
-                except Exception:
-                    return
+                return
 
             #display new image in label once resized
             photo = ImageTk.PhotoImage(resized)
@@ -506,7 +453,6 @@ class App(tk.Tk):
         ImageFrame.bind("<Configure>", ResizeImage)
         win.bind("<Configure>", lambda e: ResizeImage(e))
         win.after(150, ResizeImage)
-
 
         
         # --- InfoFrame and RightFrame ---
@@ -537,46 +483,12 @@ class App(tk.Tk):
             ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=i, column=1, sticky="w", padx=6, pady=4)
         ScrollFrame.grid_columnconfigure(1, weight=1)
 
-        #right frame that will hold html page of image 
-        #Newly implemented right frame should get the mapping functionality working??
-        RightFrame = ttk.Frame(win, relief="solid", padding=5)
-        RightFrame.grid(row=1, column=1, rowspan=2, sticky="nsew", padx=5, pady=5)
-
-        # Title label inside RightFrame
-        tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
-        #generate map html and png paths if none exist
-        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
-        out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
-        if out is None:
-            map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
-            out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
-            if out is None:
-                map_id = f"{row.get('City:','')}"
-                map_address = f"{row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
-                out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
-        MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
-        MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
-        # Load PNG into Tkinter inside RightFrame
-        img = Image.open(MAP_PNG)
-        tk_img = ImageTk.PhotoImage(img)
-
-        label = tk.Label(RightFrame, image=tk_img)
-        label.image = tk_img
-        label.pack(fill="both", expand=True)
-
-        # Button to open full interactive map in browser
-        def open_in_browser(event=None):
-            webbrowser.open(MAP_HTML.as_uri())
-
-        # Bind left mouse click on the label to open_in_browser
-        label.bind("<Button-1>", open_in_browser)
-
-
-
         #place holder right frame that will hold html page of image 
-        # NoteFrame already created:
+        RightFrame = ttk.Frame(win, relief="solid", padding=5)
+        RightFrame.grid(row=1, column=1, rowspan =2, sticky="nsew", padx=5, pady=5)
+        tk.Label(RightFrame, text="Another Box", font=("Arial", 12, "bold")).pack()
+
+        # NoteFrame for notes
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
@@ -608,242 +520,6 @@ class App(tk.Tk):
         AnotherScrollFrame.bind("<Configure>", configure_frame)
 
 
-
-         # Helper to guess the original column type for smarter conversion on save
-        def _infer_type(val):
-            if pd.isna(val):
-                return "str"
-            if isinstance(val, bool):
-                return "bool"
-            # note: bool is subclass of int, so check bool above
-            if isinstance(val, int) and not isinstance(val, bool):
-                return "int"
-            if isinstance(val, float):
-                return "float"
-            return "str"
-
- #function that deletes a row from the csv, thus deleting from treeview
-    def DelProperty(self):
-        # get selected items
-        sels = self.tree.selection()
-        if not sels:
-            messagebox.showwarning("Delete", "No row selected to delete.")
-            return
-
-        # ask for confirmation
-        if len(sels) == 1:
-            prompt = "Delete the selected property?"
-        else:
-            prompt = f"Delete the {len(sels)} selected properties?"
-        if not messagebox.askyesno("Confirm delete", prompt):
-            return
-
-        # collect indices (tags) corresponding to DataFrame indices
-        idxs = []
-        for iid in sels:
-            tags = self.tree.item(iid, "tags") or ()
-            if not tags:
-                continue
-            tag = tags[0]
-            try:
-                idx = int(tag)
-            except Exception:
-                # fallback: string index (if your df index is strings)
-                idx = tag
-            idxs.append(idx)
-
-        if not idxs:
-            messagebox.showwarning("Delete", "Could not determine rows to delete.")
-            return
-
-        try:
-            # Drop the rows from the DataFrame (ignore missing)
-            self.df = self.df.drop(index=idxs, errors="ignore")
-
-            # Reset index so everything "pushes up" and indices are contiguous
-            self.df = self.df.reset_index(drop=True)
-
-            # Backup CSV before writing
-            csv_path = CSV_PATH
-            try:
-                if os.path.exists(csv_path):
-                    bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    os.replace(csv_path, bak_name)
-            except Exception as e:
-                messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
-
-            # Save updated CSV
-            try:
-                self.df.to_csv(csv_path, index=False)
-            except Exception as e:
-                messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
-
-            # Rebuild Treeview contents and _row_ids mapping
-            # remove all existing items
-            for iid in self.tree.get_children():
-                self.tree.delete(iid)
-            self._row_ids = {}
-            for idx, row in self.df.iterrows():
-                vals = [row.get(col, "") for col in VisibleColumns]
-                # ensure strings for display (avoid NaN)
-                vals = [("" if pd.isna(v) else str(v)) for v in vals]
-                iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
-                self._row_ids[idx] = iid
-
-            messagebox.showinfo("Deleted", "Selected property(ies) deleted.")
-        except Exception as e:
-            messagebox.showerror("Delete error", f"Failed to delete row(s): {e}")
-    
-    #function that adds appends a new property to csv
-    def AddProperty(self):
-        new_values = [c for c in self.df.columns]
-
-        new_win = tk.Toplevel(self)
-        new_win.title("New Property")
-        new_win.geometry("620x520") #new window opens with these dimensions
-        new_win.minsize(420,300) #minimum size of window
-
-        #scrollable area
-        addFrame = ttk.Frame(new_win, padding = 8)
-        addFrame.pack(fill="both", expand=True)
-
-        #enables scrollable window
-        newCanvas = tk.Canvas(addFrame)
-        newVscroll = ttk.Scrollbar(addFrame, orient="vertical", command=newCanvas.yview)
-        newCanvas.configure(yscrollcommand=newVscroll.set)
-
-        #layout canvas and scrollbar
-        newCanvas.pack(side="left",fill="both", expand=True)
-        newVscroll.pack(side="right", fill="y")
-
-        #space for the contents - inner frame
-        addInner = ttk.Frame(newCanvas)
-        newCanvas.create_window((0, 0), window=addInner, anchor="nw")
-
-        #keep the scroll space up-to-date whenever size changes
-        def _configure(e):
-            newCanvas.configure(scrollregion=newCanvas.bbox("all"))
-        addInner.bind("<Configure>", _configure)
-
-        #stores input controls to be read
-        controls = {}
-        
-        #each row will hold a new column detail
-        for i, col in enumerate(new_values):
-            #val = row.get(col, "")
-            #typ = _infer_type(val)
-
-            #label for the column name is the column name from the csv
-            lbl = ttk.Label(addInner, text=f"{col}:", font=("Arial", 10, "bold"))
-            lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
-
-            #use entry widget to change values
-            entvar = tk.StringVar(value="")
-            ent = ttk.Entry(addInner, textvariable=entvar, width=50)
-            ent.grid(row=i, column=1, sticky="we", padx=6, pady=6)
-            controls[col] = ("str", entvar)
-            
-        #right column should expand with window
-        addInner.grid_columnconfigure(1, weight=1)
-
-        # Buttons at bottom
-        btnfrm = ttk.Frame(new_win, padding=6)
-        btnfrm.pack(fill="x", side="bottom")
-
-        # When user clicks Save: gather controls, create new row, append, save, update tree
-        def OnSave():
-            # read controls
-            new_row = {}
-            for col, (_k, var) in controls.items():
-                v = var.get()
-                # leave empty string for blanks (consistent with other code)
-                new_row[col] = v if v is not None else ""
-
-            # Generate Created and Modified timestamps
-            now_iso = datetime.now().isoformat()
-            if "Created" in new_row:
-                new_row["Created"] = now_iso
-            if "Modified" in new_row:
-                new_row["Modified"] = now_iso
-
-            # Generate ID if present and numeric
-            if "ID" in new_row:
-                try:
-                    # attempt to create a numeric ID: max existing numeric ID + 1
-                    existing_ids = pd.to_numeric(self.df["ID"], errors="coerce")
-                    if existing_ids.notna().any():
-                        max_id = int(existing_ids.max())
-                        new_id = max_id + 1
-                    else:
-                        new_id = len(self.df) + 1
-                    new_row["ID"] = new_id
-                except Exception:
-                    # fallback: use length+1 as ID (string)
-                    new_row["ID"] = len(self.df) + 1
-
-            # Ensure all dataframe columns exist in the row (fill missing with "")
-            for c in self.df.columns:
-                if c not in new_row:
-                    new_row[c] = ""
-
-            # Append to dataframe
-            try:
-                appended = pd.DataFrame([new_row])
-                # keep original columns order
-                appended = appended[self.df.columns]
-                self.df = pd.concat([self.df, appended], ignore_index=True)
-            except Exception as e:
-                messagebox.showerror("Append error", f"Failed to append new row: {e}")
-                return
-
-            # Save CSV with backup
-            csv_path = CSV_PATH
-            try:
-                if os.path.exists(csv_path):
-                    bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    os.replace(csv_path, bak_name)
-            except Exception as e:
-                messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
-
-            try:
-                self.df.to_csv(csv_path, index=False)
-            except Exception as e:
-                messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
-
-            # Update Treeview: insert new row at end and record its iid
-            try:
-                idx = self.df.index[-1]
-                vals = [self.df.at[idx, col] if col in self.df.columns else "" for col in VisibleColumns]
-                vals = [("" if pd.isna(v) else str(v)) for v in vals]
-                iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
-                self._row_ids[idx] = iid
-            except Exception:
-                # if tree update fails, ignore but continue
-                pass
-
-            messagebox.showinfo("Saved", "New property added and saved.")
-            try:
-                new_win.grab_release()
-            except Exception:
-                pass
-            new_win.destroy()
-
-        #function to close without saving
-        def OnCancel():
-            try:
-                new_win.grab_release()
-            except Exception:
-                pass
-            new_win.destroy()
-
-        #button has designated commands 
-        save_btn = ttk.Button(btnfrm, text="Save", command = OnSave)
-        cancel_btn = ttk.Button(btnfrm, text="Cancel", command = OnCancel)
-        save_btn.pack(side="right", padx=6)
-        cancel_btn.pack(side="right", padx=6)
-        
-        
-
     # allow user to edit fields of property 
     def EditProperty(self, idx, parent_win=None):
         try: #grab the contents of the row that was selected
@@ -853,14 +529,14 @@ class App(tk.Tk):
             return
 
         #cannot change imagepath, id, created date, modified date directly
-        skip_cols = {"ID", "Created", "Modified", "Notes"}
+        skip_cols = {"ImagePath", "ID", "Created", "Modified", "Notes"}
         #all other values can be changed
         editable_cols = [c for c in self.df.columns if c not in skip_cols]
 
 
         edit_win = tk.Toplevel(self)
-            #open a new window with details about the property
-        edit_win.title(f"Edit Property Address: {row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}")
+        #open a new window with details about the property
+        edit_win.title(f"Edit Property Address: {row.get('StreetNum','')} {row.get('Address','')}")
         edit_win.geometry("620x520") #new window opens 
         edit_win.minsize(420, 300) #minimum size of window
 
@@ -889,7 +565,7 @@ class App(tk.Tk):
         #stores input controls to be read
         controls = {}
 
-         # Helper to guess the original column type for smarter conversion on save
+        # Helper to guess the original column type for smarter conversion on save
         def _infer_type(val):
             if pd.isna(val):
                 return "str"
@@ -1135,7 +811,7 @@ class App(tk.Tk):
                 pass
             note_win.destroy()
 
-        #close not window if pressing cancel
+        #close note window if pressing cancel
         def OnCancel():
             try:
                 note_win.grab_release()
@@ -1148,7 +824,8 @@ class App(tk.Tk):
         btnframe.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Button(btnframe, text="Add", command=OnAdd).pack(side="right", padx=6)
         ttk.Button(btnframe, text="Cancel", command=OnCancel).pack(side="right", padx=6)
-        
+
+
 # --- Run App ---
 if __name__ == "__main__":
     app = App()
