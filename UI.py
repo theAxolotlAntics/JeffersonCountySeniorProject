@@ -267,10 +267,24 @@ class App(tk.Tk):
         hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscroll=vsb.set, xscroll=hsb.set)
 
+        def SortCol(col):
+            self.sort[col] = not self.sort.get(col,False) #toggle sort
+            items = [(self.tree.set(k,col),k)for k in self.tree.get_children("")]
+
+            def tryNum(x):
+                try:
+                    return float(x)
+                except Exception: #incase the contents are not able to be casted
+                    return x
+            items.sort(key=lambda t:tryNum(t[0]), reverse=self.sort[col])
+
+            for index,(_,k) in enumerate(items):
+                self.tree.move(k,"",index)
+                
         #for each column in visible columns, display it as a heading in the tree
         for col in VisibleColumns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=150, anchor="w")
+            self.tree.heading(col, text=col, command= lambda c=col: SortCol(c))
+            self.tree.column(col, width=150, anchor="w", minwidth =110)
 
         #place the grid and scrollbars
         self.tree.grid(row=0, column=0, sticky="nsew")
@@ -913,3 +927,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
