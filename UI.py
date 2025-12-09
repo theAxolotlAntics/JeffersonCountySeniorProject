@@ -16,6 +16,7 @@ from datetime import datetime
 #added imporrts for image and mapping
 from pathlib import Path
 import webbrowser
+import getpass
 from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
 
 # Define global paths
@@ -860,7 +861,8 @@ class App(tk.Tk):
 
             #add timestamp before contents of note
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            entry = f"[{timestamp}] {s}"
+            username = getpass.getuser()
+            entry = f"[{username}] [{timestamp}] {s}"
 
             #initialize note column to be empty on csv
             if "Notes" not in self.df.columns:
@@ -927,4 +929,5 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
 
