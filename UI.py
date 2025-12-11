@@ -1019,7 +1019,8 @@ class App(tk.Tk):
                     ADD_TIMESTAMP = True
                     if ADD_TIMESTAMP:
                         ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
-                        FormatNew = f"{ts}{NewInput}"
+                        username = getpass.getuser()
+                        FormatNew = f"{username}{ts}{NewInput}"
                     else:
                         FormatNew = NewInput
 
@@ -1196,3 +1197,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
