@@ -19,6 +19,21 @@ import webbrowser
 import getpass
 from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
 
+#added some imports to support exe bundling
+import json
+import logging
+from pathlib import Path
+
+import folium
+import geopandas as gpd  # for creating the map
+from geopy.geocoders import Nominatim  # for parsing the address into geocoded data
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling for geopy
+from shapely.geometry import Point  # for displaying the pinned location on the map
+import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
+import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
 # Define global paths
 BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"

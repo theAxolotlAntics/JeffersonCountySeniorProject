@@ -1,7 +1,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 import folium
 import geopandas as gpd  # for creating the map
@@ -119,7 +118,7 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
         raise FileNotFoundError(f"Shapefile not found: {shapefile_path}")
 
     # Read shapefile and filter to Jefferson county
-    municipalities = gpd.read_file(shapefile_path)
+    municipalities = gpd.read_file(shapefile_path, engine='pyogrio')
     municipalities = municipalities.to_crs(epsg=4326)
     if 'COUNTY_NAM' not in municipalities.columns:
         logger.warning("Expected 'COUNTY_NAM' in shapefile; skipping county filter.")
@@ -191,7 +190,7 @@ def generate_full_map(geocode_cache):
         raise FileNotFoundError(f"Shapefile not found: {shapefile_path}")
 
     # Read shapefile and filter to Jefferson county
-    municipalities = gpd.read_file(shapefile_path).to_crs(epsg=4326)
+    municipalities = gpd.read_file(shapefile_path, engine='pyogrio').to_crs(epsg=4326)
     if 'COUNTY_NAM' in municipalities.columns:
         municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
 
