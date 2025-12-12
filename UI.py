@@ -30,7 +30,6 @@ from geopy.geocoders import Nominatim  # for parsing the address into geocoded d
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling for geopy
 from shapely.geometry import Point  # for displaying the pinned location on the map
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
-import re
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -144,7 +143,7 @@ if not os.path.exists(CSV_PATH):
     sample.to_csv(CSV_PATH, index=False)
 
 df = pd.read_csv(CSV_PATH)
-Title = "Blight Inventory"
+Title = "Jefferson County Blight Mitigation Property Viewer"
 
 # columns wanted on the main page
 #StreeNum and Address are seperated for ease of filtering
@@ -595,9 +594,17 @@ class App(tk.Tk):
         # Title label inside RightFrame
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         #generate map html and png paths if none exist
-        map_id = row.get("ID")
-        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA, {row.get('Zipcode', '')}, USA"
-        out = create_map(map_address, ID=str(map_id))
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+        out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+        if out is None:
+            map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+            out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+            if out is None:
+                map_id = f"{row.get('City:','')}"
+                map_address = f"{row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
+                out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
         MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
         MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
         # Load PNG into Tkinter inside RightFrame
@@ -614,7 +621,6 @@ class App(tk.Tk):
 
         # Bind left mouse click on the label to open_in_browser
         label.bind("<Button-1>", open_in_browser)
-
 
 
         #place holder right frame that will hold html page of image 
