@@ -411,7 +411,7 @@ class App(tk.Tk):
 
         win = tk.Toplevel(self)
         #the title of the window is the address of the property (as requested)
-        win.title(f"Property Address: {row.get('StreetNum','')} {row.get('Address','')}")
+        win.title(f"Property Address: {row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}")
         win.geometry("800x600") #minimum size of the window
         win.minsize(400, 300)
         win.columnconfigure(0, weight=1)
@@ -642,7 +642,7 @@ class App(tk.Tk):
         NoteFrame.columnconfigure(0, weight=1)
 
         # scrollable frame inside the canvas
-        #AnotherScrollFrame = ttk.Frame(canvas)
+        AnotherScrollFrame = ttk.Frame(canvas)
         canvas.create_window((0, 0), window=AnotherScrollFrame, anchor="nw")
 
         def configure_frame(event):
@@ -1019,8 +1019,7 @@ class App(tk.Tk):
                     ADD_TIMESTAMP = True
                     if ADD_TIMESTAMP:
                         ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
-                        username = getpass.getuser()
-                        FormatNew = f"{username}{ts}{NewInput}"
+                        FormatNew = f"[{username}{ts}]{NewInput}"
                     else:
                         FormatNew = NewInput
 
@@ -1131,7 +1130,8 @@ class App(tk.Tk):
 
             #add timestamp before contents of note
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            entry = f"[{timestamp}] {s}"
+            username = getpass.getuser()
+            entry = f"[{username}] [{timestamp}] {s}"
 
             #initialize note column to be empty on csv
             if "Notes" not in self.df.columns:
