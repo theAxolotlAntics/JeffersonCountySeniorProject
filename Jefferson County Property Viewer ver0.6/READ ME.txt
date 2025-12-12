@@ -1,0 +1,15 @@
+Hello!
+
+Thank you for using the Jefferson County Property Veiwer. 
+Later, we plan to implement full documentation with screen shots, tips, and other information.
+For now, this will have to do.
+This isn't a user guide per say, its more a warning of what is happening when the app freezes.
+NOTE: idk why or how, but the first time I open the app, it doesn't dp anything. 
+If that happens, try closing the console that pops up (don't worry, it'll be gone in the final version, its there for bug squashing now)
+and try to open the app again. 
+It should pop up a selection screen asking you to pick a CSV.
+NOTE: The CSV you load needs to have the EXACT SAME first line(header) for the code to properly read it.
+>> HELP I clicked on a property and it isn't doing anything!
+actually, if you check the scary black box (console) you will see its making the map for the property. 
+Once it has already made the map, it will be much faster.
+You can force it to re-make a map if you have changed the information for the property with the map regen check box
