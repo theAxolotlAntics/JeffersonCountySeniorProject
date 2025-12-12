@@ -1,15 +1,22 @@
 Hello!
 
-Thank you for using the Jefferson County Property Veiwer. 
-Later, we plan to implement full documentation with screen shots, tips, and other information.
+Thank you for using the Jefferson County Property Viewer.
+Later, we plan to implement full documentation with screenshots, tips, and other information.
 For now, this will have to do.
-This isn't a user guide per say, its more a warning of what is happening when the app freezes.
-NOTE: idk why or how, but the first time I open the app, it doesn't dp anything. 
-If that happens, try closing the console that pops up (don't worry, it'll be gone in the final version, its there for bug squashing now)
-and try to open the app again. 
+This isn’t a user guide per se, it’s more of a warning about what’s happening when the app freezes or doesn’t seem to be working.
+
+NOTE: I don’t know why or how, but the first time I open the app, it doesn’t do anything.
+If that happens, try closing the console that pops up (don’t worry, it’ll be gone in the final version—it’s there for bug squashing now) and then try to open the app again.
 It should pop up a selection screen asking you to pick a CSV.
-NOTE: The CSV you load needs to have the EXACT SAME first line(header) for the code to properly read it.
->> HELP I clicked on a property and it isn't doing anything!
-actually, if you check the scary black box (console) you will see its making the map for the property. 
+NOTE: The CSV you load needs to have the EXACT SAME first line (header) for the code to properly read it.
+
+>> HELP: I clicked on a property and it isn’t doing anything!
+Actually, if you check the scary black box (console), you’ll see it’s making the map for the property.
 Once it has already made the map, it will be much faster.
-You can force it to re-make a map if you have changed the information for the property with the map regen check box
+You can force it to re‑make a map if you’ve changed the information for the property by using the “map regen” checkbox.
+
+ALSO: The full map always makes a new file, so it always takes a bit to pull up.
+All the maps in the app are images, but if you click them, they’ll open in the browser and let you interact with them.
+
+If I missed anything or if anything is confusing, reach out and let us know so we can fix it. :)
+ -Thanks, Brunner
