@@ -250,11 +250,13 @@ class App(tk.Tk):
             else:
                 address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
                 map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                coords = geocode_address(address, label=map_id)
                 if coords:
                     cache[map_id] = coords  
                 else:
                     address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
                     map_id = f"{row.get('City:','')}"
+                    coords = geocode_address(address, label=map_id)
                     if coords:
                         cache[map_id] = coords  
 
