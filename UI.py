@@ -1,6 +1,6 @@
-# Name: Gannon Kearney, Brunner Good, Isaac Wagner
+# Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 12/3/25
+# Last Updated: 2/3/26
 # Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
@@ -13,11 +13,16 @@ import io
 import re
 import os
 from datetime import datetime
+
+#to create new csv's
+import csv
+
 #added imporrts for image and mapping
 from pathlib import Path
 import webbrowser
 import getpass
 from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
+
 
 #added some imports to support exe bundling
 import json
@@ -30,6 +35,7 @@ from geopy.geocoders import Nominatim  # for parsing the address into geocoded d
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling for geopy
 from shapely.geometry import Point  # for displaying the pinned location on the map
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
+import re
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -143,7 +149,7 @@ if not os.path.exists(CSV_PATH):
     sample.to_csv(CSV_PATH, index=False)
 
 df = pd.read_csv(CSV_PATH)
-Title = "Jefferson County Blight Mitigation Property Viewer"
+Title = "Blight Inventory"
 
 # columns wanted on the main page
 #StreeNum and Address are seperated for ease of filtering
@@ -183,6 +189,7 @@ class App(tk.Tk):
     def CreateMenu(self): #create the menubar.  This appears in the top left with an exit option
         menubar = tk.Menu(self)
         filemenu = tk.Menu(menubar, tearoff=0)
+        filemenu.add_command(label="Save As", command=self.SaveAsCSV)
         filemenu.add_command(label="Exit", command=self.destroy) #exit option closes program
         menubar.add_cascade(label="File", menu=filemenu)
         self.config(menu=menubar)
@@ -203,6 +210,7 @@ class App(tk.Tk):
         
         ttk.Button(bar, text="New", command=self.AddProperty).pack(side="left", padx=4)
         ttk.Button(bar, text="Delete", command=self.DelProperty).pack(side="left", padx=4)
+        ttk.Button(bar, text="Show Favorites", command=self.ShowFavs).pack(side="left", padx=4)
 
     # --- Filters ---
     #Different filters based on customer needs
@@ -250,13 +258,11 @@ class App(tk.Tk):
             else:
                 address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
                 map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-                coords = geocode_address(address, label=map_id)
                 if coords:
                     cache[map_id] = coords  
                 else:
                     address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
                     map_id = f"{row.get('City:','')}"
-                    coords = geocode_address(address, label=map_id)
                     if coords:
                         cache[map_id] = coords  
 
@@ -281,6 +287,30 @@ class App(tk.Tk):
 
         # Bind left mouse click on the label to open_in_browser
         label.bind("<Button-1>", open_in_browser)
+
+    def SaveAsCSV(self):
+        # Ask user where to save
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            title="Save as CSV"
+        )
+
+        if not file_path:
+            return  # user cancelled
+
+        try:
+             # get visible row indices from treeview tags
+            visible_idxs = [int(self.tree.item(iid, "tags")[0])
+                for iid in self.tree.get_children("")]
+
+        # export ALL columns for visible rows
+            self.df.loc[visible_idxs].to_csv(file_path, index=False)
+
+            messagebox.showinfo("Saved", "Treeview exported successfully.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save file:\n{e}")
         
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
@@ -464,8 +494,20 @@ class App(tk.Tk):
         #these are displayed to be able to edit property values and add notes specific to the property
         EditBtn = ttk.Button(win, text="Edit Property Values", command=lambda i=idx: self.EditProperty(i, win))
         NoteBtn = ttk.Button(win, text="Add Note", command=lambda i=idx: self.AddNote(i, win))
+        
         EditBtn.grid(row=3, column=0, sticky="ew", padx=8, pady=(6, 8))
         NoteBtn.grid(row=3, column=1, sticky="ew", padx=8, pady=(6, 8))
+
+        # determine initial button text
+        fav_text = "Unfavorite" if self.df.at[idx, "Favorited"] == 1 else "Favorite"
+
+        FavBtn = ttk.Button(win,text=fav_text,command=lambda i=idx, b=None: self.ToggleFavorite(i, b))
+
+        # hack to pass the button instance to itself
+        FavBtn.config(command=lambda i=idx, b=FavBtn: self.ToggleFavorite(i, b))
+
+        FavBtn.grid(row=3, column=2, sticky="ew", padx=8, pady=(6, 8))
+
 
         # finds out how big the image should be based on the window size
         def MaxSize():
@@ -596,17 +638,9 @@ class App(tk.Tk):
         # Title label inside RightFrame
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         #generate map html and png paths if none exist
-        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
-        out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
-        if out is None:
-            map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
-            out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
-            if out is None:
-                map_id = f"{row.get('City:','')}"
-                map_address = f"{row.get('City:','')}, {row.get('Zipcode:','')}, PA, USA"
-                out = create_map(map_address, ID=str(map_id), force_refresh= self.map_regen.get())
+        map_id = row.get("ID")
+        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA, {row.get('Zipcode', '')}, USA"
+        out = create_map(map_address, ID=str(map_id))
         MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
         MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
         # Load PNG into Tkinter inside RightFrame
@@ -623,6 +657,7 @@ class App(tk.Tk):
 
         # Bind left mouse click on the label to open_in_browser
         label.bind("<Button-1>", open_in_browser)
+
 
 
         #place holder right frame that will hold html page of image 
@@ -672,6 +707,29 @@ class App(tk.Tk):
             if isinstance(val, float):
                 return "float"
             return "str"
+        
+    def ToggleFavorite(self, idx, fav_btn):
+        # safety check
+        if "Favorited" not in self.df.columns:
+            return
+
+        # toggle value
+        current = int(self.df.at[idx, "Favorited"])
+        new_val = 0 if current == 1 else 1
+        self.df.at[idx, "Favorited"] = new_val
+
+        # update button text
+        fav_btn.config(text="Unfavorite" if new_val == 1 else "Favorite")
+
+#function that only shows that favorite properties as marked by user.  This displats a new tree with all properties with 1 in Favorited Column
+    def ShowFavs(self):
+        if "Favorited" not in self.df.columns:
+            return  # safety check
+
+        data = self.df[self.df["Favorited"] == 1]
+        self.ShowTree(data)
+
+        
 
  #function that deletes a row from the csv, thus deleting from treeview
     def DelProperty(self):
