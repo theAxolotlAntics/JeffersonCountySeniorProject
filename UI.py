@@ -646,11 +646,9 @@ class App(tk.Tk):
         # Title label inside RightFrame
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         # generate map html and png paths if none exist
-
-        # use the ID to assign a unique ID
-        map_id = row.get("ID") 
-        # generate a valid address for the property
-        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA, {row.get('Zipcode', '')}, USA"
+        # generate a valid address and ID for the property
+        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
         # assign the boolean values to possible statuses
         status_flags = [ ("blight", validate(row.get("Property Blighted?", ""))), ("com", validate(row.get("Commercial", ""))), ("res", validate(row.get("Residential", ""))),]
         # assign the status to the first valid flag
