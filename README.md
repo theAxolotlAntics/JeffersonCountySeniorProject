@@ -9,6 +9,7 @@ Progress so far:
 - [X] Build V0.1
 - [ ] Figure out why not working on client device
 - [ ] Implement QoL, such as coloring, and help/settings menu
+- [ ] Dark/theme mode
 - [ ] Fix bugs/ errors
 - [ ] Improve inline documentation
 - [ ] Finish Implementation Manual
