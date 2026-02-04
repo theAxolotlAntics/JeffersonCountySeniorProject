@@ -48,6 +48,12 @@ def addressToKey(address: str):
     key = re.sub(r"[.,]", "", key)
     return key
 
+def validate(val):
+    """
+    A little helper function that makes sure that Yes means True
+    """
+    return str(val).strip().lower() in ("yes", "y", "true", "1")
+
 def _load_geocode_cache():
     if GEOCODE_CACHE_FILE.exists():
         try:
@@ -63,28 +69,27 @@ def _save_geocode_cache(cache: dict):
     except Exception as e:
         logger.warning("Failed to write geocode cache: %s", e)
 
-def geocode_address(address: str, label: str, retries: int = 3, delay: float = 1.0):
+def geocode_address(address, label, status, cache, retries=3, delay=1.0):
     if not address or not isinstance(address, str):
         logger.debug("Empty or invalid address provided.")
         return None
 
     key = label
-    cache = _load_geocode_cache()  # load existing dict
 
     if key in cache:
         lon, lat = cache[key]["lon"], cache[key]["lat"]
         logger.debug("Geocode cache hit for address: %s", address)
-        return {"lon": lon, "lat": lat}  # return simple dict
+        return {"lon": lon, "lat": lat, "status" : status}  # return simple dict
 
     for attempt in range(retries):
         try:
             location = GEOLocator.geocode(address)
             if location:
                 lon, lat = location.longitude, location.latitude
-                cache[key] = {"lon": lon, "lat": lat}  # add new entry
+                cache[key] = {"lon": lon, "lat": lat, "status" : status}  # add new entry
                 _save_geocode_cache(cache)            # save full dict
                 logger.info("Geocoded address '%s' -> (%s, %s)", address, lat, lon)
-                return {"lon": lon, "lat": lat}
+                return {"lon": lon, "lat": lat, "status": status}
             else:
                 logger.info("Address not found: %s", address)
                 return None
@@ -94,7 +99,7 @@ def geocode_address(address: str, label: str, retries: int = 3, delay: float = 1
     logger.error("Failed to geocode after %d attempts: %s", retries, address)
     return None
 
-def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path:
+def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: bool = False) -> Path:
     """
     Create (or return cached) HTML map for the given address/ID.
     - clean_address: address string to geocode
@@ -125,19 +130,13 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
     else:
         municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
 
-    # create the folium map object from the GeoDataFrame
-    try:
-        folium_map = municipalities.explore()
-    except Exception as e:
-        logger.exception("Failed to create base map: %s", e)
-        raise
-
     # geocode the address and add pin if successful
-    pin = geocode_address(clean_address, label=ID)
+    pin = geocode_address(clean_address, label=ID, cache=cache, status=status)
+    status_colors = {"blight": "green", "res": "red", "com": "beige", }
+    color = status_colors.get(status, "blue")  # default if status is None
     if pin is not None:
         lon, lat = pin["lon"], pin["lat"] 
         folium_map = folium.Map(location=[lat, lon], zoom_start=15)
-        folium.Marker([lat, lon], popup=ID).add_to(folium_map)
         # add county polygons
         folium.GeoJson(
             municipalities,
@@ -154,7 +153,7 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
             #)
         ).add_to(folium_map)
         # add pin
-        folium.Marker([lat, lon], popup=ID).add_to(folium_map)
+        folium.Marker([lat, lon], icon=folium.Icon(color=color), popup=ID).add_to(folium_map)
     else:
         return None  # could not geocode address      
         
@@ -169,7 +168,7 @@ def create_map(clean_address: str, ID: str, force_refresh: bool = False) -> Path
 
         driver = webdriver.Chrome(options=options)
         driver.get(out_path.with_suffix(".html").as_uri())
-        time.sleep(2)  # wait for tiles to load
+        time.sleep(1)  # wait for tiles to load
         driver.save_screenshot(str(out_path.with_suffix(".png")))
         driver.quit()
 
@@ -201,6 +200,7 @@ def generate_full_map(geocode_cache):
             "name": addr,
             "lon": coords["lon"],
             "lat": coords["lat"],
+            "status": coords.get("status"),
             "geometry": Point(coords["lon"], coords["lat"])
         })
     pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
@@ -220,8 +220,11 @@ def generate_full_map(geocode_cache):
     ).add_to(folium_map)
 
     # --- Add pins from GeoDataFrame ---
+    status_colors = {"blight": "green", "res": "red", "com": "beige"}
+
     for _, row in pins_gdf.iterrows():
-        folium.Marker([row["lat"], row["lon"]], popup=row["name"]).add_to(folium_map)
+        color = status_colors.get(row["status"], "blue")  # default if status is None
+        folium.Marker([row["lat"], row["lon"]], icon=folium.Icon(color=color), popup=row["name"], ).add_to(folium_map)
 
     # Save HTML
     html_path = out_path.with_suffix(".html")

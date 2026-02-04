@@ -21,7 +21,7 @@ import csv
 from pathlib import Path
 import webbrowser
 import getpass
-from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache
+from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache, validate
 
 
 #added some imports to support exe bundling
@@ -42,6 +42,8 @@ from selenium.webdriver.chrome.options import Options
 # Define global paths
 BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
+# Define the cache once to speed up mapping
+cache = _load_geocode_cache()
 
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
@@ -247,22 +249,28 @@ class App(tk.Tk):
     #This fuction will create a map with all the adresses in the dataframe
     def CreateFullMap(self):
         MAP_HTML = CACHE_DIR / "full_Map.html"
-        cache = _load_geocode_cache()
+        
 
         for index, row in self.df.iterrows():
             address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            coords = geocode_address(address, label=map_id)
+             # assign the boolean values to possible statuses
+            status_flags = [ ("blight", validate(row.get("Property Blighted?", ""))), ("com", validate(row.get("Commercial", ""))), ("res", validate(row.get("Residential", ""))),]
+            # assign the status to the first valid flag
+            status = next((name for name, flag in status_flags if flag), None)
+            coords = geocode_address(address, label=map_id, status=status, cache=cache)
             if coords:
                 cache[map_id] = coords  
             else:
                 address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
                 map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                coords = geocode_address(address, label=map_id, status=status, cache=cache)
                 if coords:
                     cache[map_id] = coords  
                 else:
                     address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
                     map_id = f"{row.get('City:','')}"
+                    coords = geocode_address(address, label=map_id, status=status, cache=cache)
                     if coords:
                         cache[map_id] = coords  
 
@@ -637,10 +645,18 @@ class App(tk.Tk):
 
         # Title label inside RightFrame
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
-        #generate map html and png paths if none exist
-        map_id = row.get("ID")
+        # generate map html and png paths if none exist
+
+        # use the ID to assign a unique ID
+        map_id = row.get("ID") 
+        # generate a valid address for the property
         map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA, {row.get('Zipcode', '')}, USA"
-        out = create_map(map_address, ID=str(map_id))
+        # assign the boolean values to possible statuses
+        status_flags = [ ("blight", validate(row.get("Property Blighted?", ""))), ("com", validate(row.get("Commercial", ""))), ("res", validate(row.get("Residential", ""))),]
+        # assign the status to the first valid flag
+        status = next((name for name, flag in status_flags if flag), None)
+        # create the map, so that the status effects the pin color
+        out = create_map(map_address, ID=str(map_id), cache=cache, status=status)
         MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
         MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
         # Load PNG into Tkinter inside RightFrame
