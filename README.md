@@ -12,9 +12,9 @@ Progress so far:
 - [ ] Dark/theme mode
 - [ ] Fix bugs/ errors
 - [ ] Improve inline documentation
-- [ ] Finish Implementation Manual
-- [ ] Finish System Documentation
-- [ ] Finish User Manual
+- [ ] (I) Finish Implementation Manual
+- [ ] (B) Finish System Documentation
+- [ ] (A) Finish User Manual
 - [ ] App Icon 
 - [ ] Tidy up github
 
