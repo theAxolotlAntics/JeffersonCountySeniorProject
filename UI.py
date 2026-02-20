@@ -1,6 +1,6 @@
 # Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 2/3/26
+# Last Updated: 2/19/26
 # Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
@@ -12,7 +12,7 @@ import requests
 import io
 import re
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 #to create new csv's
 import csv
@@ -180,21 +180,44 @@ class App(tk.Tk):
         self.title(Title)
         self.geometry("1100x600")
         self.minsize(900, 520) #min size of the main window
+        
         self.df = df.copy()
-        self.CreateMenu() #call constructors
+
+        
+        self.all_columns = list(self.df.columns)
+        self.visible_columns= [col for col in VisibleColumns if col in self.all_columns]
+
+        if not self.visible_columns:
+            self.visible_columns=self.all_columns.copy()
+
+        self.menubar = tk.Menu(self)
+        self.config(menu=self.menubar)
+
+        self.CreateToolMenu()
+        self.CreateSettingsMenu()
         self.CreateToolbar()
         self.BuildFilters()
+
         self.BuildTree()
         self.ShowTree(self.df)
 
     # --- Menu ---
-    def CreateMenu(self): #create the menubar.  This appears in the top left with an exit option
+    def CreateToolMenu(self): #creates a tool bar with navigation buttons
         menubar = tk.Menu(self)
         filemenu = tk.Menu(menubar, tearoff=0)
+        filemenu.add_command(label="New File", command=self.NewCSV)
         filemenu.add_command(label="Save As", command=self.SaveAsCSV)
+        filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.destroy) #exit option closes program
-        menubar.add_cascade(label="File", menu=filemenu)
-        self.config(menu=menubar)
+        self.menubar.add_cascade(label="File", menu=filemenu)
+    def CreateSettingsMenu(self): #create a settings menubar.  This can change font size, themes, and toggle the mode (blight or inventory)
+        settingsbar = tk.Menu(self)
+        settingsmenu = tk.Menu(settingsbar, tearoff=0)
+        settingsmenu.add_command(label="Change Mode")
+        settingsmenu.add_command(label="Themes")
+        settingsmenu.add_command(label="Font Size")
+        self.menubar.add_cascade(label="Settings", menu=settingsmenu)
+        settingsmenu.add_command(label = "Show/Hide Columns", command=self.ShowColumnSelector)
 
       # --- Toolbar ---
     def CreateToolbar(self): #creates a tool bar with navigation buttons
@@ -214,34 +237,73 @@ class App(tk.Tk):
         ttk.Button(bar, text="Delete", command=self.DelProperty).pack(side="left", padx=4)
         ttk.Button(bar, text="Show Favorites", command=self.ShowFavs).pack(side="left", padx=4)
 
-    # --- Filters ---
+   #Filters
     #Different filters based on customer needs
     def BuildFilters(self):
         frm = ttk.LabelFrame(self, text="Filters & Sort", padding=8)
         frm.pack(side="top", fill="x", padx=8, pady=(0, 8))
-        self.BlightedFilter = tk.BooleanVar(value=False) #blighted property is false by default
-        self.VacancyFilter = tk.BooleanVar(value=False) #vacancy (true or false) is false by default
 
-        ttk.Checkbutton(frm, text="Blighted", variable=self.BlightedFilter).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(frm, text="Vacancy", variable=self.VacancyFilter).grid(row=0, column=1, sticky="w")
-        self.use = ttk.Combobox(frm,values=["Both"] + Uses, state="readonly")
-        self.use.set("Both")
-        self.use.grid(row=0,column=2, sticky="w", padx=6)
+        self.BlightedFilter = tk.BooleanVar(value=False)
+        self.VacancyFilter = tk.BooleanVar(value=False)
 
-        #using all of the Citys, display them in a drop down list, with all appearing first
-        self.City = ttk.Combobox(frm, values=["City"] + Citys, state="readonly")
-        self.City.set("City") #all is default
-        self.City.grid(row=0, column=3, sticky="w", padx=6)
+        ttk.Checkbutton(frm, text="Blighted", variable=self.BlightedFilter)\
+            .grid(row=0, column=0, sticky="w")
 
-        #using all of the Municipalitys, display in a dropdown with all defaulted
-        self.Municipality = ttk.Combobox(frm, values=["Municipality"] + Municipalitys, state="readonly")
-        self.Municipality.set("Municipality")
-        self.Municipality.grid(row=0, column=4, sticky="w", padx=6)
+        ttk.Checkbutton(frm, text="Vacant", variable=self.VacancyFilter)\
+            .grid(row=0, column=1, sticky="w")
+
+        #Use Dropdown
+        uses = ["Both"] + sorted(self.df["Commercial"].dropna().unique().tolist() +
+                                 self.df["Residential"].dropna().unique().tolist())
+
+        self.use_var = tk.StringVar(value="Both")
+        self.use = ttk.Combobox(frm, textvariable=self.use_var, values=["Both", "Commercial", "Residential"], state="readonly")
+        self.use.grid(row=0, column=2, padx=6)
+
+        #City Dropdown
+        city_list = ["All"] + sorted(self.df["City:"].dropna().unique().tolist())
+
+        self.city_var = tk.StringVar(value="All")
+        self.City = ttk.Combobox(frm, textvariable=self.city_var, values=city_list, state="readonly")
+        self.City.grid(row=0, column=3, padx=6)
+
+        # Municipality Dropdown
+        muni_list = ["All"] + sorted(self.df["Municipality:"].dropna().unique().tolist())
+
+        self.muni_var = tk.StringVar(value="All")
+        self.Municipality = ttk.Combobox(frm, textvariable=self.muni_var, values=muni_list, state="readonly")
+        self.Municipality.grid(row=0, column=4, padx=6)
+
+        #Date Range
+        ttk.Label(frm, text="From Date").grid(row=1,column=0,sticky="w")
+        self.from_date = tk.StringVar()
+        ttk.Entry(frm, textvariable=self.from_date,width=12).grid(row=1,column=1)
+
+        ttk.Label(frm, text="To Date").grid(row=1,column=2,sticky="w")
+        self.to_date = tk.StringVar()
+        ttk.Entry(frm, textvariable=self.to_date,width=12).grid(row=1,column=3)
+
+        #ZipCode Filter
+        ttk.Label(frm,text="ZipCode:").grid(row=1,column=4,sticky="w")
+        zip_list = ["All"] + sorted(self.df["Zipcode:"].dropna().astype(str).unique().tolist())
+
+        self.zip_var = tk.StringVar(value="All")
+        self.zip = ttk.Combobox(frm, textvariable=self.zip_var,values=zip_list,state="readonly")
+        self.zip.grid(row=1,column=5,padx=6)
+
+        #LastModified Filter
+        self.modified_var = tk.StringVar(value="All")
+        ttk.Label(frm,text="Last Modified").grid(row=2, column=0)
+
+        ttk.Combobox(frm, textvariable=self.modified_var, values=["All", "Last 24 Hours", "Last 7 Days", "Last 30 Days"], state="readonly").grid(row=2,column=1)
+
+        # Buttons
+        ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
+
+        ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
 
         #apply and reset filters call respective commands
         self.map_regen = tk.BooleanVar(value=False)
-        ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
-        ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
         ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
         ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
 
@@ -296,6 +358,33 @@ class App(tk.Tk):
         # Bind left mouse click on the label to open_in_browser
         label.bind("<Button-1>", open_in_browser)
 
+    #create a new csv with the 
+    def NewCSV(self):
+        # Let the user choose a CSV file first
+        user_path = choose_csv_path()
+        if user_path:
+            CSV_PATH = user_path
+        
+        # Ask user where to save the new file
+        new_csv = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            title="New CSV"
+        )
+
+        if not new_csv:  # user cancelled
+            return
+
+        # Read headers from source file
+        with open(CSV_PATH, newline='', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+
+        # Create a new file with only those headers
+        with open(new_csv, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+
     def SaveAsCSV(self):
         # Ask user where to save
         file_path = filedialog.asksaveasfilename(
@@ -323,51 +412,71 @@ class App(tk.Tk):
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # --- TreeView ---
     def BuildTree(self):
-        container = ttk.Frame(self)
-        container.pack(side="top", fill="both", expand=True, padx=8, pady=8)
-            #take the values of the headings in visible columns and display them
-        self.tree = ttk.Treeview(container, columns=VisibleColumns, show="headings")
-        
-            #have a vertical scroll bar and horizontal scroll bar for navigation
-        vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscroll=vsb.set, xscroll=hsb.set)
+        # Destroy previous tree frame completely (prevents stacking)
+        if hasattr(self, "tree_container"):
+            self.tree_container.destroy()
 
+        # Create container frame once per rebuild
+        self.tree_container = ttk.Frame(self)
+        self.tree_container.pack(side="top", fill="both", expand=True, padx=8, pady=8)
+
+        # Create Treeview
+        self.tree = ttk.Treeview(
+            self.tree_container,
+            columns=self.visible_columns,
+            show="headings"
+        )
+
+        # Scrollbars
+        vsb = ttk.Scrollbar(self.tree_container, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(self.tree_container, orient="horizontal", command=self.tree.xview)
+
+        self.tree.configure(
+            yscrollcommand=vsb.set,
+            xscrollcommand=hsb.set
+        )
+
+        # Grid layout
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+
+        self.tree_container.grid_rowconfigure(0, weight=1)
+        self.tree_container.grid_columnconfigure(0, weight=1)
+
+        # Sorting dictionary
         self.sort = {}
         
+        # Sorting function
         def SortCol(col):
-            self.sort[col] = not self.sort.get(col,False) #toggle sort
-            items = [(self.tree.set(k,col),k)for k in self.tree.get_children("")]
+            self.sort[col] = not self.sort.get(col, False)
+
+            items = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
 
             def tryNum(x):
                 try:
                     return float(x)
-                except Exception: #incase the contents are not able to be caste
+                except:
                     return x
-            items.sort(key=lambda t:tryNum(t[0]), reverse=self.sort[col])
 
-            for index,(_,k) in enumerate(items):
-                self.tree.move(k,"",index)
-                
-        #for each column in visible columns, display it as a heading in the tree
-        for col in VisibleColumns:
-            self.tree.heading(col, text=col, command= lambda c=col: SortCol(c))
-            self.tree.column(col, width=150, anchor="w", minwidth =110)
+            items.sort(key=lambda t: tryNum(t[0]), reverse=self.sort[col])
 
-        #place the grid and scrollbars
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        vsb.grid(row=0, column=1, sticky="ns")
-        hsb.grid(row=1, column=0, sticky="ew")
-        container.grid_rowconfigure(0, weight=1)
-        container.grid_columnconfigure(0, weight=1)
+            for index, (_, k) in enumerate(items):
+                self.tree.move(k, "", index)
 
-        #if a row is selected, run the selected function
+        # Configure headings + columns
+        for col in self.visible_columns:
+            self.tree.heading(col, text=col, command=lambda c=col: SortCol(c))
+            self.tree.column(col, width=150, anchor="w", minwidth=110)
+
+        # Selection binding
         self.tree.bind("<<TreeviewSelect>>", self.Selected)
 
-        #for each row in the table, display its respective value for each column
+        # Insert data
         self._row_ids = {}
+
         for idx, row in self.df.iterrows():
-            vals = [row.get(col, "") for col in VisibleColumns]
+            vals = [row.get(col, "") for col in self.visible_columns]
             iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
             self._row_ids[idx] = iid
 
@@ -380,58 +489,94 @@ class App(tk.Tk):
             else:
                 self.tree.detach(iid) #hides rows not filtered results
 
-    # --- Filters processing ---
+   # Filters processing
     def ApplyFilters(self, event=None):
-        #copy original df
-        data = self.df.copy()
-        if self.City.get() != "City" and "City:" in data.columns:
-            #grab the City filter if it is not all
-            data = data[data["City:"] == self.City.get()]
-        if self.Municipality.get() != "Municipality" and "Municipality:" in data.columns:
-            #grab the Municipality if it is not all
-            data = data[data["Municipality:"] == self.Municipality.get()]
-        if self.BlightedFilter.get() and "Property Blighted?" in data.columns:
-            #See if the blighted filter is selected
-            data = data[data["Property Blighted?"] == True]
-        if self.use.get() != "Both" and ("Commercial" and "Residential") in data.columns:
-            #grab the use if it is not all
-            if self.use.get() == "Commercial":
-                data = data[data["Commercial"] == True]
-            elif self.use.get() == "Residential":
-               data = data[data["Residential"] == True]
-        if self.VacancyFilter.get() and "Vacant Property:" in data.columns:
-            #see if the vacanct filter is selected
-            data = data[data["Vacant Property:"] == True]
+        df = self.df.copy()
 
-        # grab the contents of the search bar, strip whitespace, and lowercase
-        query = self.SearchInput.get().strip().lower()
-        if query:
-            # start with all False
-            mask = pd.Series(False, index=data.index)
+        #Blighted Filter
+        if self.BlightedFilter.get():
+            df = df[df["Property Blighted?"]]
 
-            # search across ALL columns, converting to string and ignoring case
-            for col in data.columns:
-                try:
-                    col_str = data[col].astype(str).str.lower()
-                    mask |= col_str.str.contains(query, na=False)
-                except Exception:
-                    # if a column somehow fails conversion, just skip it
-                    pass
+        #Vacancy Filter
+        if self.VacancyFilter.get():
+            df = df[df["Vacant Property:"]]
 
-            data = data[mask]
+        #Use Filter
+        use = self.use_var.get()
+        if use == "Commercial":
+            df = df[df["Commercial"]]
+        elif use == "Residential":
+            df = df[df["Residential"]]
 
-        #show everything that accounts for all filters
-        self.ShowTree(data)
+        #City Filter
+        city = self.city_var.get()
+        if city != "All":
+            df = df[df["City:"] == city]
+
+        #Municipality Filter
+        muni = self.muni_var.get()
+        if muni != "All":
+            df = df[df["Municipality:"] == muni]
+
+        #Date Range
+        if self.from_date.get() or self.to_date.get():
+            df["Start time"] = pd.to_datetime(df["Start time"], errors="coerce")
+
+        if self.from_date.get():
+            start = pd.to_datetime(self.from_date.get(), errors="coerce")
+            df = df[df["Start time"] >= start]
+
+        if self.to_date.get():
+            end = pd.to_datetime(self.to_date.get(), errors="coerce")
+            df = df[df["Start time"] <= end]
+
+        #Zip Code
+        zip_code = self.zip_var.get()
+        if zip_code != "All":
+            df = df[df["Zipcode:"].astype(str) == zip_code]
+
+        #Last Modified Filter
+        modified = self.modified_var.get()
+        if modified != "All":
+            df["Completion time"] = pd.to_datetime(df["Completion time"], errors="coerce")
+            now = datetime.now()
+
+            if modified == "Last 24 Hours":
+                cutoff = now - timedelta(days=1)
+            elif modified == "Last 7 Days":
+                cutoff = now - timedelta(days=7)
+            elif modified == "Last 30 Days":
+                cutoff = now - timedelta(days=30)
+
+            df = df[df["Completion time"] >= cutoff]
+
+        #Search Filter
+        search = self.SearchInput.get().lower().strip()
+        if search:
+            df = df[df.apply(
+                lambda row: search in " ".join(map(str, row.values)).lower(),
+                axis=1
+            )]
+
+        # Refresh tree
+        self.ShowTree(df)
 
     def ResetFilters(self):
-        #reset all filters and earch bars to default values
-        self.City.set("City")
-        self.Municipality.set("Municipality")
         self.BlightedFilter.set(False)
-        self.use.set("Use")
         self.VacancyFilter.set(False)
+
+        self.use_var.set("Both")
+        self.city_var.set("All")
+        self.muni_var.set("All")
+
         self.SearchInput.set("")
-        self.ShowTree(self.df) #show original df
+
+        self.from_date.set("")
+        self.to_date.set("")
+        self.zip_var.set("")
+        self.modified_var.set("")
+        
+        self.ShowTree(self.df)
 
     # This function displays what happens when a row is selected on
         #It displays property details, an image from the csv, and the ability to edit all values or notes
@@ -631,6 +776,8 @@ class App(tk.Tk):
             canvas.configure(scrollregion=canvas.bbox("all"))
         ScrollFrame.bind("<Configure>", ConfigureFrame)
 
+        hidden_columns=[col for col in self.all_columns if col not in self.visible_columns]
+
         #display all values for hidden columns' cells
         for i, col in enumerate(hidden_columns):
             val = row.get(col, "")
@@ -745,7 +892,48 @@ class App(tk.Tk):
         data = self.df[self.df["Favorited"] == 1]
         self.ShowTree(data)
 
-        
+    def ShowColumnSelector(self):
+
+            top = tk.Toplevel(self)
+            top.title("Show / Hide Columns")
+            top.geometry("300x400")
+            top.grab_set()  # modal window
+
+            checkbox_vars = {}
+
+            # Scrollable frame (in case many columns)
+            canvas = tk.Canvas(top)
+            scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
+            scroll_frame = ttk.Frame(canvas)
+
+            scroll_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+
+            canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+
+            # Create checkboxes
+            for col in self.all_columns:
+                var = tk.BooleanVar(value=(col in self.visible_columns))
+                checkbox = ttk.Checkbutton(scroll_frame, text=col, variable=var)
+                checkbox.pack(anchor="w", padx=10, pady=2)
+                checkbox_vars[col] = var
+
+            def apply_changes():
+                self.visible_columns = [
+                    col for col, var in checkbox_vars.items() if var.get()
+                ]
+                self.BuildTree()
+                self.ShowTree(self.df)  # repopulate tree
+                top.destroy()
+                
+            ttk.Button(top, text="Apply", command=apply_changes).pack(pady=10)
+
 
  #function that deletes a row from the csv, thus deleting from treeview
     def DelProperty(self):
