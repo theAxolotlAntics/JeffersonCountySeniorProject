@@ -1,3 +1,8 @@
+
+# ignore the fully compiled app?
+Jefferson County Property Viewer
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
