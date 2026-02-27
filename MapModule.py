@@ -25,28 +25,31 @@ CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 GEOCODE_CACHE_FILE = CACHE_DIR / "geocode_cache.json"
 
+# List of status and their correlated colors
+status_colors = {
+    "Vacant Residential": "lightred",         
+    "Vacant Commercial": "lightblue",          
+    "Vacant Blighted": "lightgreen",       
+
+    "Vacant Blighted Residential": "darkred", 
+    "Vacant Blighted Commercial": "darkblue",   
+    "Vacant Residential Commercial": "purple",     
+
+    "Vacant Blighted Residential Commercial": "darkpurple", 
+
+    "Residential": "red",         
+    "Commercial": "blue",          
+    "Blighted": "green",       
+
+    "Blighted Residential": "darkred", 
+    "Blighted Commercial": "darkblue",   
+    "Residential Commercial": "purple",     
+
+    "Blighted Residential Commercial": "darkpurple",  
+}
 
 # Reuse a single Nominatim instance (respect API usage)
 GEOLocator = Nominatim(user_agent="Jefferson County Economic Development", timeout=5)
-
-def addressToKey(address: str):
-    """
-    Normalize an address string into a consistent cache key.
-    - Lowercase
-    - Strip leading/trailing whitespace
-    - Collapse internal whitespace
-    - Remove punctuation that doesn't affect geocoding
-    Returns None if input is invalid.
-    """
-    if not address or not isinstance(address, str):
-        return None
-    # Lowercase and strip
-    key = address.strip().lower()
-    # Collapse multiple spaces
-    key = re.sub(r"\s+", " ", key)
-    # Remove commas/periods for consistency
-    key = re.sub(r"[.,]", "", key)
-    return key
 
 def validate(val):
     """
@@ -99,17 +102,17 @@ def geocode_address(address, label, status, cache, retries=3, delay=1.0):
     logger.error("Failed to geocode after %d attempts: %s", retries, address)
     return None
 
-def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: bool = False) -> Path:
+def create_map(address: str, ID: str, cache, status: str, force_refresh: bool = False) -> Path:
     """
     Create (or return cached) HTML map for the given address/ID.
-    - clean_address: address string to geocode
+    - address: address string to geocode
     - ID: unique identifier used to name the cached HTML file
     - force_refresh: if True, recreates the map even if a cached file exists
     Returns the Path to the saved HTML file.
     """
     # sanitize ID for filename
-    safe_id = re.sub(r'[<>:"/\\|?*]', '_', str(ID))
-    filename = f"{safe_id}_Map"
+    
+    filename = f"{ID}_Map"
     out_path = CACHE_DIR / filename
     html_path = out_path.with_suffix(".html")
     png_path = out_path.with_suffix(".png")
@@ -131,9 +134,8 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
         municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
 
     # geocode the address and add pin if successful
-    pin = geocode_address(clean_address, label=ID, cache=cache, status=status)
-    status_colors = {"blight": "green", "res": "red", "com": "beige", }
-    color = status_colors.get(status, "blue")  # default if status is None
+    pin = geocode_address(address, label=ID, cache=cache, status=status)
+    color = status_colors.get(status, "black")  # default if status is None
     if pin is not None:
         lon, lat = pin["lon"], pin["lat"] 
         folium_map = folium.Map(location=[lat, lon], zoom_start=15)
@@ -153,7 +155,7 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
             #)
         ).add_to(folium_map)
         # add pin
-        folium.Marker([lat, lon], icon=folium.Icon(color=color), popup=ID).add_to(folium_map)
+        folium.Marker([lat, lon], icon=folium.Icon(color=color), popup=f"{ID}\n{status}").add_to(folium_map)
     else:
         return None  # could not geocode address      
         
@@ -220,11 +222,10 @@ def generate_full_map(geocode_cache):
     ).add_to(folium_map)
 
     # --- Add pins from GeoDataFrame ---
-    status_colors = {"blight": "green", "res": "red", "com": "beige"}
 
     for _, row in pins_gdf.iterrows():
-        color = status_colors.get(row["status"], "blue")  # default if status is None
-        folium.Marker([row["lat"], row["lon"]], icon=folium.Icon(color=color), popup=row["name"], ).add_to(folium_map)
+        color = status_colors.get(row["status"], "black")  # default if status is None
+        folium.Marker([row["lat"], row["lon"]], icon=folium.Icon(color=color), popup=f"{row["name"]}\n{row["status"]}", ).add_to(folium_map)
 
     # Save HTML
     html_path = out_path.with_suffix(".html")

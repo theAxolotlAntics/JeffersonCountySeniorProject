@@ -305,7 +305,7 @@ class App(tk.Tk):
         #apply and reset filters call respective commands
         self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
+        ttk.Checkbutton(frm, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
 
 
     #This fuction will create a map with all the adresses in the dataframe
@@ -316,22 +316,36 @@ class App(tk.Tk):
         for index, row in self.df.iterrows():
             address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-             # assign the boolean values to possible statuses
-            status_flags = [ ("blight", validate(row.get("Property Blighted?", ""))), ("com", validate(row.get("Commercial", ""))), ("res", validate(row.get("Residential", ""))),]
-            # assign the status to the first valid flag
-            status = next((name for name, flag in status_flags if flag), None)
+            # create list of status flags for possible status and combination support
+            status_flags = []
+
+            if validate(row.get("Vacant Property:", "")):
+                    status_flags.append("Vacant")
+
+            if validate(row.get("Property Blighted?", "")):
+                    status_flags.append("Blighted")
+
+            if validate(row.get("Residential", "")):
+                    status_flags.append("Residential")
+
+            if validate(row.get("Commercial", "")):
+                    status_flags.append("Commercial")
+            
+            # combine flags into a string
+            status = " ".join(status_flags) if status_flags else None
+
             coords = geocode_address(address, label=map_id, status=status, cache=cache)
             if coords:
                 cache[map_id] = coords  
             else:
                 address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                map_id = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
                 coords = geocode_address(address, label=map_id, status=status, cache=cache)
                 if coords:
                     cache[map_id] = coords  
                 else:
                     address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                    map_id = f"{row.get('City:','')}"
+                    map_id = f"Property in {row.get('City:','')}"
                     coords = geocode_address(address, label=map_id, status=status, cache=cache)
                     if coords:
                         cache[map_id] = coords  
@@ -794,19 +808,44 @@ class App(tk.Tk):
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         # generate map html and png paths if none exist
 
-        # use the ID to assign a unique ID
-        map_id = row.get("ID") 
+        # use the address to build an ID that makes sense
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
         # generate a valid address for the property
-        map_address = f"{row.get('StreetNum','')} {row.get('Address','')}, {row.get('City','')}, PA, {row.get('Zipcode', '')}, USA"
-        # assign the boolean values to possible statuses
-        status_flags = [ ("blight", validate(row.get("Property Blighted?", ""))), ("com", validate(row.get("Commercial", ""))), ("res", validate(row.get("Residential", ""))),]
-        # assign the status to the first valid flag
-        status = next((name for name, flag in status_flags if flag), None)
+        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+        # create list of status flags for possible status and combination support
+        status_flags = []
+
+        if validate(row.get("Vacant Property:", "")):
+                status_flags.append("Vacant")
+
+        if validate(row.get("Property Blighted?", "")):
+                status_flags.append("Blighted")
+
+        if validate(row.get("Residential", "")):
+                status_flags.append("Residential")
+
+        if validate(row.get("Commercial", "")):
+                status_flags.append("Commercial")
+            
+        # combine flags into a string
+        status = " ".join(status_flags) if status_flags else None
         # create the map, so that the status effects the pin color
-        out = create_map(map_address, ID=str(map_id), cache=cache, status=status)
-        MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
-        MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
+        test = geocode_address(map_address, label=map_id, status=status, cache=cache) 
+        if not test:
+                map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
+                test = geocode_address(map_address, label=map_id, status=status, cache=cache)
+
+                if not test:
+                    map_address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+                    map_id = f"Property in {row.get('City:','')}".strip()
+                    
+        out = create_map(map_address, ID=str(map_id), cache=cache, status=status, force_refresh= self.map_regen.get()) 
+        MAP_HTML = out.with_suffix(".html")
+        MAP_PNG = out.with_suffix(".png")
+        
         # Load PNG into Tkinter inside RightFrame
+
         img = Image.open(MAP_PNG)
         tk_img = ImageTk.PhotoImage(img)
 
