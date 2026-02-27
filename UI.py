@@ -554,6 +554,7 @@ class App(tk.Tk):
         if modified != "All":
             df["Completion time"] = pd.to_datetime(df["Completion time"], errors="coerce")
             now = datetime.now()
+            cutoff = datetime.now()
 
             if modified == "Last 24 Hours":
                 cutoff = now - timedelta(days=1)
