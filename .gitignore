@@ -1,6 +1,7 @@
 
 # ignore the fully compiled app?
 Jefferson County Property Viewer
+resources/cachedMaps
 
 
 # Byte-compiled / optimized / DLL files
