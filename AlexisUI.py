@@ -159,15 +159,6 @@ VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last
                       "Parcel ID, if known:", "Property Address Number:", "Property Address Street Name:",
                       "City:", "Zipcode:", "Municipality:", "Property Blighted?", "Commercial", "Residential", "Vacant Property:", "Submitter's Name:",
                       "Submitter's Email or Phone Number (this information will be used to collect any critical information or clear up any discrepancies)"]
-
-# NEW: Inventory mode hides survey/question fields in the property detail left panel
-INVENTORY_HIDE_COLUMNS = {
-    "Vacant Property:",
-    "Commercial",
-    "Residential",
-    "Submitter's Name:",
-    "Submitter's Email or Phone Number (this information will be used to collect any critical information or clear up any discrepancies)",
-}
                       
 
 # columns displayed on selected property page (skip last column if image link etc)
@@ -212,7 +203,6 @@ class App(tk.Tk):
         self.ShowTree(self.df)
 
     def ToggleMode(self):  # NEW
-        # Toggle between Blight and Inventory mode
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
         messagebox.showinfo("Mode Changed", f"Current mode: {self.mode.get()}")
 
@@ -252,6 +242,7 @@ class App(tk.Tk):
         ttk.Button(bar, text="New", command=self.AddProperty).pack(side="left", padx=4)
         ttk.Button(bar, text="Delete", command=self.DelProperty).pack(side="left", padx=4)
         ttk.Button(bar, text="Show Favorites", command=self.ShowFavs).pack(side="left", padx=4)
+
         ttk.Button(bar, text="Toggle Mode", command=self.ToggleMode).pack(side="left", padx=4)  # NEW
 
    #Filters
@@ -810,19 +801,32 @@ class App(tk.Tk):
 
         hidden_columns=[col for col in self.all_columns if col not in self.visible_columns]
 
-        # NEW: Inventory mode hides survey/question fields in the left detail panel
-        if self.mode.get() == "Inventory":
-            hidden_columns = [
-                col for col in hidden_columns
-                if ("?" not in col) and (col not in INVENTORY_HIDE_COLUMNS)
-            ]
+        # NEW: Inventory mode hides ALL survey questions/details by showing ONLY a small summary
+        if self.mode.get() == "Inventory":  # NEW
+            summary_fields = [  # NEW
+                ("Parcel ID", "Parcel ID, if known:"),  # NEW
+                ("Address #", "Property Address Number:"),  # NEW
+                ("Street", "Property Address Street Name:"),  # NEW
+                ("City", "City:"),  # NEW
+                ("Zip", "Zipcode:"),  # NEW
+                ("Municipality", "Municipality:"),  # NEW
+            ]  # NEW
 
-        #display all values for hidden columns' cells
-        for i, col in enumerate(hidden_columns):
-            val = row.get(col, "")
-            ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold")).grid(row=i, column=0, sticky="e", padx=6, pady=4)
-            ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=i, column=1, sticky="w", padx=6, pady=4)
-        ScrollFrame.grid_columnconfigure(1, weight=1)
+            r = 0  # NEW
+            for label, col in summary_fields:  # NEW
+                if col in self.df.columns:  # NEW
+                    val = row.get(col, "")  # NEW
+                    ttk.Label(ScrollFrame, text=f"{label}:", font=("Arial", 10, "bold")).grid(row=r, column=0, sticky="e", padx=6, pady=4)  # NEW
+                    ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=r, column=1, sticky="w", padx=6, pady=4)  # NEW
+                    r += 1  # NEW
+            ScrollFrame.grid_columnconfigure(1, weight=1)  # NEW
+        else:
+            #display all values for hidden columns' cells (Blight mode)
+            for i, col in enumerate(hidden_columns):
+                val = row.get(col, "")
+                ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold")).grid(row=i, column=0, sticky="e", padx=6, pady=4)
+                ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=i, column=1, sticky="w", padx=6, pady=4)
+            ScrollFrame.grid_columnconfigure(1, weight=1)
 
         #right frame that will hold html page of image 
         #Newly implemented right frame should get the mapping functionality working??
@@ -1107,9 +1111,6 @@ class App(tk.Tk):
         
         #each row will hold a new column detail
         for i, col in enumerate(new_values):
-            #val = row.get(col, "")
-            #typ = _infer_type(val)
-
             #label for the column name is the column name from the csv
             lbl = ttk.Label(addInner, text=f"{col}:", font=("Arial", 10, "bold"))
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
