@@ -7,7 +7,7 @@
   },
   {
    "optionDest": "filenames",
-   "value": "C:/Users/satur/OneDrive - Pennsylvania Western University/JeffersonCountySeniorProject/UI.py"
+   "value": "C:/Users/satur/OneDrive - Pennsylvania Western University/JeffersonCountySeniorProject/New UI.py"
   },
   {
    "optionDest": "onefile",
@@ -18,8 +18,12 @@
    "value": true
   },
   {
+   "optionDest": "icon_file",
+   "value": "C:/Users/satur/OneDrive - Pennsylvania Western University/JeffersonCountySeniorProject/JC.ico"
+  },
+  {
    "optionDest": "name",
-   "value": "Jefferson County Property Viewer ver0.6"
+   "value": "Jefferson County Property Viewer"
   },
   {
    "optionDest": "clean_build",
