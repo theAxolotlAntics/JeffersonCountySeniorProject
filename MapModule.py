@@ -225,7 +225,7 @@ def generate_full_map(geocode_cache):
 
     for _, row in pins_gdf.iterrows():
         color = status_colors.get(row["status"], "black")  # default if status is None
-        folium.Marker([row["lat"], row["lon"]], icon=folium.Icon(color=color), popup=f"{row["name"]}\n{row["status"]}", ).add_to(folium_map)
+        folium.Marker([row["lat"], row["lon"]], icon=folium.Icon(color=color), popup=f"{row['name']}\n{row['status']}", ).add_to(folium_map)
 
     # Save HTML
     html_path = out_path.with_suffix(".html")
