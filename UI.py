@@ -150,7 +150,7 @@ if not os.path.exists(CSV_PATH):
     })
     sample.to_csv(CSV_PATH, index=False)
 
-df = pd.read_csv(CSV_PATH)
+Originaldf = pd.read_csv(CSV_PATH)
 Title = "Blight Inventory"
 
 # columns wanted on the main page
@@ -162,7 +162,7 @@ VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last
                       
 
 # columns displayed on selected property page (skip last column if image link etc)
-hidden_columns = [col for col in df.columns[:-1] if col not in VisibleColumns]
+hidden_columns = [col for col in Originaldf.columns[:-1] if col not in VisibleColumns]
 
 # Citys and Municipalitys in Jefferson County
 Citys = ["Big Run", "Brockway", "Brookville", "Corsica", "Falls Creek", "Punxsutawney",
@@ -173,6 +173,11 @@ Municipalitys = ["Barnett", "Beaver", "Bell", "Clover", "Eldred", "Gaskill", "He
 
 Uses = ["Commercial","Residential"]
 
+
+def normalize(series):
+    return series.astype(str).str.strip().str.lower()
+
+
 # ---- App ----
 class App(tk.Tk):
     def __init__(self):
@@ -181,7 +186,8 @@ class App(tk.Tk):
         self.geometry("1100x600")
         self.minsize(900, 520) #min size of the main window
         
-        self.df = df.copy()
+        self.df = Originaldf.copy()
+        
 
         self.mode = tk.StringVar(value="Blight")  # NEW: "Blight" or "Inventory"
         
@@ -269,14 +275,14 @@ class App(tk.Tk):
         self.use.grid(row=0, column=2, padx=6)
 
         #City Dropdown
-        city_list = ["All"] + sorted(self.df["City:"].dropna().unique().tolist())
+        city_list = ["All"] + sorted(self.df["City:"].dropna().astype(str).str.strip().unique().tolist())
 
         self.city_var = tk.StringVar(value="All")
         self.City = ttk.Combobox(frm, textvariable=self.city_var, values=city_list, state="readonly")
         self.City.grid(row=0, column=3, padx=6)
 
         # Municipality Dropdown
-        muni_list = ["All"] + sorted(self.df["Municipality:"].dropna().unique().tolist())
+        muni_list = ["All"] + sorted(self.df["Municipality:"].dropna().astype(str).str.strip().unique().tolist())
 
         self.muni_var = tk.StringVar(value="All")
         self.Municipality = ttk.Combobox(frm, textvariable=self.muni_var, values=muni_list, state="readonly")
@@ -513,32 +519,32 @@ class App(tk.Tk):
 
    # Filters processing
     def ApplyFilters(self, event=None):
-        df = self.df.copy()
+        df = Originaldf.copy()
 
         #Blighted Filter
         if self.BlightedFilter.get():
-            df = df[df["Property Blighted?"]]
+            df = df[normalize(df["Property Blighted?"]) == "true"]
 
         #Vacancy Filter
         if self.VacancyFilter.get():
-            df = df[df["Vacant Property:"]]
+            df = df[normalize(df["Vacant Property:"]) == "true"]
 
         #Use Filter
         use = self.use_var.get()
         if use == "Commercial":
-            df = df[df["Commercial"]]
+            df = df[normalize(df["Commercial"]) == "true"]
         elif use == "Residential":
-            df = df[df["Residential"]]
+            df = df[normalize(df["Residential"]) =="true"]
 
         #City Filter
         city = self.city_var.get()
         if city != "All":
-            df = df[df["City:"] == city]
+            df = df[normalize(df["City:"]) == city.strip().lower()]
 
         #Municipality Filter
         muni = self.muni_var.get()
         if muni != "All":
-            df = df[df["Municipality:"] == muni]
+            df = df[normalize(df["Municipality:"]) == muni.strip().lower()]
 
         #Date Range
         if self.from_date.get() or self.to_date.get():
@@ -555,7 +561,7 @@ class App(tk.Tk):
         #Zip Code
         zip_code = self.zip_var.get()
         if zip_code != "All":
-            df = df[df["Zipcode:"].astype(str) == zip_code]
+            df = df[normalize(df["Zipcode:"]) == zip_code.strip().lower()]
 
         #Last Modified Filter
         modified = self.modified_var.get()
@@ -583,6 +589,7 @@ class App(tk.Tk):
 
         # Refresh tree
         self.ShowTree(df)
+        
 
     def ResetFilters(self):
         self.BlightedFilter.set(False)
@@ -596,10 +603,14 @@ class App(tk.Tk):
 
         self.from_date.set("")
         self.to_date.set("")
-        self.zip_var.set("")
-        self.modified_var.set("")
+        self.zip_var.set("All")
+        self.modified_var.set("All")
+        self.SearchInput.set("")
         
+        self.df = Originaldf.copy()
         self.ShowTree(self.df)
+
+    
 
     # This function displays what happens when a row is selected on
         #It displays property details, an image from the csv, and the ability to edit all values or notes
@@ -624,6 +635,7 @@ class App(tk.Tk):
         win.columnconfigure(0, weight=1)
         win.columnconfigure(1, weight=1)
         win.rowconfigure(1, weight=1)
+
 
 
         # --- Top image frame --- (where the image is presented)
@@ -682,7 +694,7 @@ class App(tk.Tk):
         # hack to pass the button instance to itself
         FavBtn.config(command=lambda i=idx, b=FavBtn: self.ToggleFavorite(i, b))
 
-        FavBtn.grid(row=3, column=2, sticky="ew", padx=8, pady=(6, 8))
+        FavBtn.grid(row=2, column=1, sticky="ew", padx=8, pady=(6, 8))
 
 
         # finds out how big the image should be based on the window size
@@ -776,57 +788,70 @@ class App(tk.Tk):
         win.bind("<Configure>", lambda e: ResizeImage(e))
         win.after(150, ResizeImage)
 
-
         
         # --- InfoFrame and RightFrame ---
-        InfoFrame = ttk.Frame(win, relief="solid", padding=5)
-        InfoFrame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        InfoFrame.grid_rowconfigure(0, weight=1)
-        InfoFrame.grid_columnconfigure(0, weight=1)
+        InfoFrame=ttk.Frame(win,relief="solid",padding=5)
+        InfoFrame.grid(row=1,column=0,sticky="nsew", padx=5,pady=5)
 
-        canvas = tk.Canvas(InfoFrame) #set the info frame on the bottom left of the window
-        vscroll = ttk.Scrollbar(InfoFrame, orient="vertical", command=canvas.yview)
-        hscroll = ttk.Scrollbar(InfoFrame, orient="horizontal", command=canvas.xview)
-        canvas.configure(yscrollcommand=vscroll.set, xscrollcommand=hscroll.set)
-        canvas.grid(row=0, column=0, sticky="nsew")
-        vscroll.grid(row=0, column=1, sticky="ns")
-        hscroll.grid(row=1, column=0, sticky="ew") #scrollbar will stick if necessary
+        InfoFrame.grid_rowconfigure(0,weight=1)
+        InfoFrame.grid_columnconfigure(0,weight=1)
+
+        canvas = tk.Canvas(InfoFrame)
+        vscroll = ttk.Scrollbar(InfoFrame, orient="vertical",command=canvas.yview)
+        hscroll = ttk.Scrollbar(InfoFrame, orient="horizontal",command=canvas.xview)
+
+        canvas.configure(yscrollcommand=vscroll.set,xscrollcommand=hscroll.set)
+
+        canvas.grid(row=0,column=0,sticky="nsew")
+        vscroll.grid(row=0,column=1,sticky="ns")
+        hscroll.grid(row=1,column=0,sticky="ew")
+        
         ScrollFrame = ttk.Frame(canvas)
-        canvas.create_window((0, 0), window=ScrollFrame, anchor="nw")
+        window_id = canvas.create_window((0,0),window=ScrollFrame,anchor="nw")
 
         #adjusts scroll region when content changes
         def ConfigureFrame(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+            bbox = canvas.bbox("all")
+            if bbox:
+                canvas.configure(scrollregion=bbox)
         ScrollFrame.bind("<Configure>", ConfigureFrame)
+
+        def ConfigureCanvas(event):
+            canvas.itemconfig(window_id, width=event.width)
+        canvas.bind("<Configure>", ConfigureCanvas)
+
 
         hidden_columns=[col for col in self.all_columns if col not in self.visible_columns]
 
-        # NEW: Inventory mode hides ALL survey questions/details by showing ONLY a small summary
-        if self.mode.get() == "Inventory":  # NEW
-            summary_fields = [  # NEW
-                ("Parcel ID", "Parcel ID, if known:"),  # NEW
-                ("Address #", "Property Address Number:"),  # NEW
-                ("Street", "Property Address Street Name:"),  # NEW
-                ("City", "City:"),  # NEW
-                ("Zip", "Zipcode:"),  # NEW
-                ("Municipality", "Municipality:"),  # NEW
-            ]  # NEW
 
-            r = 0  # NEW
-            for label, col in summary_fields:  # NEW
-                if col in self.df.columns:  # NEW
-                    val = row.get(col, "")  # NEW
-                    ttk.Label(ScrollFrame, text=f"{label}:", font=("Arial", 10, "bold")).grid(row=r, column=0, sticky="e", padx=6, pady=4)  # NEW
-                    ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=r, column=1, sticky="w", padx=6, pady=4)  # NEW
-                    r += 1  # NEW
-            ScrollFrame.grid_columnconfigure(1, weight=1)  # NEW
+        if self.mode.get() == "Inventory":
+            summary_fields = [
+                ("Parcel ID", "Parcel ID, if known:"),
+                ("Address #", "Property Address Number:"),
+                ("Street", "Property Address Street Name:"),
+                ("City", "City:"),
+                ("Zip", "Zipcode:"),
+                ("Municipality", "Municipality:"),
+            ]
+
+            for r, (label, col) in enumerate(summary_fields):
+                if col in self.df.columns:
+                    val = row.get(col, "")
+                    ttk.Label(ScrollFrame, text=f"{label}:", font=("Arial", 10, "bold"))\
+                        .grid(row=r, column=0, sticky="ne", padx=6, pady=4)
+
+                    ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w")\
+                        .grid(row=r, column=1, sticky="nw", padx=6, pady=4)
         else:
-            #display all values for hidden columns' cells (Blight mode)
             for i, col in enumerate(hidden_columns):
                 val = row.get(col, "")
-                ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold")).grid(row=i, column=0, sticky="e", padx=6, pady=4)
-                ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w").grid(row=i, column=1, sticky="w", padx=6, pady=4)
-            ScrollFrame.grid_columnconfigure(1, weight=1)
+                ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))\
+                    .grid(row=i, column=0, sticky="ne", padx=6, pady=4)
+
+                ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w")\
+                    .grid(row=i, column=1, sticky="nw", padx=6, pady=4)
+
+        ScrollFrame.grid_columnconfigure(1, weight=1)
 
         #right frame that will hold html page of image 
         #Newly implemented right frame should get the mapping functionality working??
@@ -897,7 +922,7 @@ class App(tk.Tk):
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
         
 
-        # Header label -> use grid, not pack
+        # Header label 
         tk.Label(NoteFrame, text=f"Notes: {row.get('Notes','')}", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=4)
 
         # canvas + scrollbars inside NoteFrame (all grid)
