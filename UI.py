@@ -1,6 +1,6 @@
 # Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 2/19/26
+# Last Updated: 3/10/26
 # Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
@@ -797,28 +797,25 @@ class App(tk.Tk):
         InfoFrame.grid_columnconfigure(0,weight=1)
 
         canvas = tk.Canvas(InfoFrame)
-        vscroll = ttk.Scrollbar(InfoFrame, orient="vertical",command=canvas.yview)
-        hscroll = ttk.Scrollbar(InfoFrame, orient="horizontal",command=canvas.xview)
+        vscroll = ttk.Scrollbar(InfoFrame, orient="vertical", command=canvas.yview)
+        hscroll = ttk.Scrollbar(InfoFrame, orient="horizontal", command=canvas.xview)
 
-        canvas.configure(yscrollcommand=vscroll.set,xscrollcommand=hscroll.set)
+        canvas.configure(
+            yscrollcommand=vscroll.set,
+            xscrollcommand=hscroll.set
+        )
 
-        canvas.grid(row=0,column=0,sticky="nsew")
-        vscroll.grid(row=0,column=1,sticky="ns")
-        hscroll.grid(row=1,column=0,sticky="ew")
-        
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vscroll.grid(row=0, column=1, sticky="ns")
+        hscroll.grid(row=1, column=0, sticky="ew")
+
         ScrollFrame = ttk.Frame(canvas)
-        window_id = canvas.create_window((0,0),window=ScrollFrame,anchor="nw")
+        canvas.create_window((0,0), window=ScrollFrame, anchor="nw")
 
-        #adjusts scroll region when content changes
         def ConfigureFrame(event):
-            bbox = canvas.bbox("all")
-            if bbox:
-                canvas.configure(scrollregion=bbox)
-        ScrollFrame.bind("<Configure>", ConfigureFrame)
+            canvas.configure(scrollregion=canvas.bbox("all"))
 
-        def ConfigureCanvas(event):
-            canvas.itemconfig(window_id, width=event.width)
-        canvas.bind("<Configure>", ConfigureCanvas)
+        ScrollFrame.bind("<Configure>", ConfigureFrame)
 
 
         hidden_columns=[col for col in self.all_columns if col not in self.visible_columns]
@@ -917,37 +914,61 @@ class App(tk.Tk):
 
 
         #place holder right frame that will hold html page of image 
-       # NoteFrame for notes
+       # --- NoteFrame for notes ---
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
-        
 
-        # Header label 
-        tk.Label(NoteFrame, text=f"Notes: {row.get('Notes','')}", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=4)
-
-        # canvas + scrollbars inside NoteFrame (all grid)
-        canvas = tk.Canvas(NoteFrame)
-        vscroll = ttk.Scrollbar(NoteFrame, orient="vertical", command=canvas.yview)
-        hscroll = ttk.Scrollbar(NoteFrame, orient="horizontal", command=canvas.xview)
-        canvas.configure(yscrollcommand=vscroll.set, xscrollcommand=hscroll.set)
-
-        # Layout: canvas at (1,0), vscroll at (1,1), hscroll at (2,0)
-        canvas.grid(row=1, column=0, sticky="nsew")
-        vscroll.grid(row=1, column=1, sticky="ns")
-        hscroll.grid(row=2, column=0, sticky="ew")
-
-        # Make canvas expand
         NoteFrame.rowconfigure(1, weight=1)
         NoteFrame.columnconfigure(0, weight=1)
 
-        # scrollable frame inside the canvas
-        AnotherScrollFrame = ttk.Frame(canvas)
-        canvas.create_window((0, 0), window=AnotherScrollFrame, anchor="nw")
+        # Header label
+        tk.Label(
+            NoteFrame,
+            text=f"Notes: {row.get('Notes','')}",
+            font=("Arial", 12, "bold")
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=4)
 
-        def configure_frame(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+        # Canvas + scrollbars
+        note_canvas = tk.Canvas(NoteFrame)
+        note_vscroll = ttk.Scrollbar(NoteFrame, orient="vertical", command=note_canvas.yview)
+        note_hscroll = ttk.Scrollbar(NoteFrame, orient="horizontal", command=note_canvas.xview)
 
-        AnotherScrollFrame.bind("<Configure>", configure_frame)
+        note_canvas.configure(
+            yscrollcommand=note_vscroll.set,
+            xscrollcommand=note_hscroll.set
+        )
+
+        note_canvas.grid(row=1, column=0, sticky="nsew")
+        note_vscroll.grid(row=1, column=1, sticky="ns")
+        note_hscroll.grid(row=2, column=0, sticky="ew")
+
+        # Scrollable frame
+        NoteScrollFrame = ttk.Frame(note_canvas)
+        note_window = note_canvas.create_window((0, 0), window=NoteScrollFrame, anchor="nw")
+
+        # Update scroll region when content changes
+        def note_configure_frame(event):
+            note_canvas.configure(scrollregion=note_canvas.bbox("all"))
+
+        NoteScrollFrame.bind("<Configure>", note_configure_frame)
+
+        # Resize inner frame with canvas
+        def note_configure_canvas(event):
+            note_canvas.itemconfig(note_window, width=event.width)
+
+        note_canvas.bind("<Configure>", note_configure_canvas)
+
+
+        # Example: display notes text inside scrollable area
+        notes_text = row.get("Notes", "")
+
+        ttk.Label(
+            NoteScrollFrame,
+            text=notes_text,
+            wraplength=350,
+            anchor="nw",
+            justify="left"
+        ).grid(row=0, column=0, sticky="nw", padx=5, pady=5)
 
 
 
