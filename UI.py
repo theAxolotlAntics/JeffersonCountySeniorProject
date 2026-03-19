@@ -1,6 +1,6 @@
 # Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 3/10/26
+# Last Updated: 2/19/26
 # Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
@@ -44,6 +44,17 @@ BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 # Define the cache once to speed up mapping
 cache = _load_geocode_cache()
+
+#favorited options
+favorited_options = ["0","1"]
+
+#submitter names
+sub_names= ["Elise Grovanz", "Jess Seary", "Other"]
+
+#submitter emails
+sub_emails = ["egrovanz@jeffersoncountypa.gov", "jseary@jeffersoncountypa.gov", "Other"]
+
+
 
 #Take an image link - preferably from Google Drive and create a list of URL's for downloading
 def FindLinkFormat(url: str):
@@ -438,7 +449,7 @@ class App(tk.Tk):
             messagebox.showerror("Error", f"Failed to save file:\n{e}")
         
     #This function takes the contents of the csv and displays them in an easy-to-read table
-    # --- TreeView ---
+    # TreeView
     def BuildTree(self):
         # Destroy previous tree frame completely (prevents stacking)
         if hasattr(self, "tree_container"):
@@ -638,7 +649,7 @@ class App(tk.Tk):
 
 
 
-        # --- Top image frame --- (where the image is presented)
+        #  Top image frame (where the image is presented)
         ImageFrame = ttk.Frame(win, height=max(120, win.winfo_height() // 3), relief="solid")
         ImageFrame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         ImageFrame.grid_propagate(False)
@@ -678,7 +689,7 @@ class App(tk.Tk):
             #if no image path exists
             ImageLabel.config(text="No Image Available")
 
-        # --- Buttons outside frames  ---
+        #Buttons outside frames
         #these are displayed to be able to edit property values and add notes specific to the property
         EditBtn = ttk.Button(win, text="Edit Property Values", command=lambda i=idx: self.EditProperty(i, win))
         NoteBtn = ttk.Button(win, text="Add Note", command=lambda i=idx: self.AddNote(i, win))
@@ -789,7 +800,7 @@ class App(tk.Tk):
         win.after(150, ResizeImage)
 
         
-        # --- InfoFrame and RightFrame ---
+        # InfoFrame and RightFrame 
         InfoFrame=ttk.Frame(win,relief="solid",padding=5)
         InfoFrame.grid(row=1,column=0,sticky="nsew", padx=5,pady=5)
 
@@ -914,7 +925,7 @@ class App(tk.Tk):
 
 
         #place holder right frame that will hold html page of image 
-       # --- NoteFrame for notes ---
+       # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
@@ -1131,26 +1142,45 @@ class App(tk.Tk):
         new_win.minsize(420,300) #minimum size of window
 
         #scrollable area
-        addFrame = ttk.Frame(new_win, padding = 8)
-        addFrame.pack(fill="both", expand=True)
+
+        addFrame = ttk.Frame(new_win,padding=8)
+        addFrame.pack(fill="both",expand=True)
+
+        addFrame.rowconfigure(0,weight=1)
+        addFrame.columnconfigure(0,weight=1)
 
         #enables scrollable window
         newCanvas = tk.Canvas(addFrame)
         newVscroll = ttk.Scrollbar(addFrame, orient="vertical", command=newCanvas.yview)
+        newHscroll = ttk.Scrollbar(addFrame, orient="horizontal", command=newCanvas.xview)
         newCanvas.configure(yscrollcommand=newVscroll.set)
 
-        #layout canvas and scrollbar
-        newCanvas.pack(side="left",fill="both", expand=True)
-        newVscroll.pack(side="right", fill="y")
+        
+        newCanvas.configure(
+            yscrollcommand=newVscroll.set,
+            xscrollcommand=newHscroll.set
+        )
 
-        #space for the contents - inner frame
-        addInner = ttk.Frame(newCanvas)
-        newCanvas.create_window((0, 0), window=addInner, anchor="nw")
+        newCanvas.grid(row=0, column=0, sticky="nsew")
+        newVscroll.grid(row=0, column=1, sticky="ns")
+        newHscroll.grid(row=1, column=0, sticky="ew")
+
+        # Scrollable frame
+        ScrollFrame = ttk.Frame(newCanvas)
+        canvas_window = newCanvas.create_window((0, 0), window=ScrollFrame, anchor="nw")
 
         #keep the scroll space up-to-date whenever size changes
-        def _configure(e):
+        def configure_frame(event):
             newCanvas.configure(scrollregion=newCanvas.bbox("all"))
-        addInner.bind("<Configure>", _configure)
+
+        ScrollFrame.bind("<Configure>", configure_frame)
+
+        # Resize inner frame with canvas
+        def configure_canvas(event):
+            newCanvas.itemconfig(canvas_window, width=event.width)
+
+        newCanvas.bind("<Configure>", configure_canvas)
+
 
         #stores input controls to be read
         controls = {}
@@ -1158,17 +1188,43 @@ class App(tk.Tk):
         #each row will hold a new column detail
         for i, col in enumerate(new_values):
             #label for the column name is the column name from the csv
-            lbl = ttk.Label(addInner, text=f"{col}:", font=("Arial", 10, "bold"))
+            lbl = ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
 
-            #use entry widget to change values
-            entvar = tk.StringVar(value="")
-            ent = ttk.Entry(addInner, textvariable=entvar, width=50)
-            ent.grid(row=i, column=1, sticky="we", padx=6, pady=6)
-            controls[col] = ("str", entvar)
+            if col == "City:":
+                var=tk.StringVar()
+                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=Citys, state="readonly")
+
+            elif col == "Municipality:":
+                var=tk.StringVar()
+                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=Municipalitys, state="readonly")
+
+            #dropdown cases
+            elif col == "Favorited":
+                var=tk.StringVar(value=favorited_options[0])
+                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=favorited_options, state="readonly")
+
+            elif col == "Submitter's Name:":
+                var=tk.StringVar()
+                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=sub_names, state="readonly")
+
+            elif col ==  "Submitter's Email or Phone Number (this information will be used to collect any critical information or clear up any discrepancies)":
+                var=tk.StringVar()
+                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=sub_emails, state="readonly")
+
+            elif col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
+                var = tk.StringVar(value="False")
+                widget = ttk.Combobox(ScrollFrame, textvariable=var,values=["True", "False"], state="readonly")
+            else:
+                #use entry widget to change values
+                var = tk.StringVar(value="")
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+                
+            widget.grid(row=i, column=1, sticky="we", padx=6, pady=6)
+            controls[col] = var
             
         #right column should expand with window
-        addInner.grid_columnconfigure(1, weight=1)
+        ScrollFrame.grid_columnconfigure(1, weight=1)
 
         # Buttons at bottom
         btnfrm = ttk.Frame(new_win, padding=6)
@@ -1178,10 +1234,9 @@ class App(tk.Tk):
         def OnSave():
             # read controls
             new_row = {}
-            for col, (_k, var) in controls.items():
-                v = var.get()
+            for col, var in controls.items():
                 # leave empty string for blanks (consistent with other code)
-                new_row[col] = v if v is not None else ""
+                new_row[col] = var.get()
 
             # Generate Created and Modified timestamps
             now_iso = datetime.now().isoformat()
@@ -1270,213 +1325,177 @@ class App(tk.Tk):
 
     # allow user to edit fields of property 
     def EditProperty(self, idx, parent_win=None):
-        try: #grab the contents of the row that was selected
+        try:
             row = self.df.loc[idx].copy()
         except Exception as e:
             messagebox.showerror("Edit error", f"Unable to find row {idx}: {e}")
             return
 
-        #cannot change imagepath, id, created date, modified date directly
-        skip_cols = {"ImagePath", "ID", "Created", "Modified", "Notes"}
-        #all other values can be changed
+        skip_cols = {"ImagePath", "ID", "Created", "Modified"}
         editable_cols = [c for c in self.df.columns if c not in skip_cols]
 
-
         edit_win = tk.Toplevel(self)
-            #open a new window with details about the property
-        edit_win.title(f"Edit Property Address: {row.get('StreetNum','')} {row.get('Address','')}")
-        edit_win.geometry("620x520") #new window opens 
-        edit_win.minsize(420, 300) #minimum size of window
+        edit_win.title("Edit Property")
+        edit_win.geometry("620x520")
+        edit_win.minsize(420, 300)
 
-        # Scrollable area
+        # Scrollable area 
         frame = ttk.Frame(edit_win, padding=8)
         frame.pack(fill="both", expand=True)
-        
-        #enables scrollable window
+
         canvas = tk.Canvas(frame)
         vscroll = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=vscroll.set)
 
-        #layout canvas and scrollbar
+        canvas.configure(yscrollcommand=vscroll.set)
         canvas.pack(side="left", fill="both", expand=True)
         vscroll.pack(side="right", fill="y")
 
-        #space for the contents - inner frame
         inner = ttk.Frame(canvas)
-        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
 
-        #keep the scroll space up-to-date whenever size changes
-        def _configure(e):
+        def configure_frame(event):
             canvas.configure(scrollregion=canvas.bbox("all"))
-        inner.bind("<Configure>", _configure)
 
-        #stores input controls to be read
+        inner.bind("<Configure>", configure_frame)
+
+        def configure_canvas(event):
+            canvas.itemconfig(canvas_window, width=event.width)
+
+        canvas.bind("<Configure>", configure_canvas)
+
+        # Controls storage 
         controls = {}
 
-         # Helper to guess the original column type for smarter conversion on save
+        # Type inference 
         def _infer_type(val):
             if pd.isna(val):
                 return "str"
             if isinstance(val, bool):
                 return "bool"
-            # note: bool is subclass of int, so check bool above
             if isinstance(val, int) and not isinstance(val, bool):
                 return "int"
             if isinstance(val, float):
                 return "float"
             return "str"
-        
-        #each row will hold a new column detail
+
+        # Build form
         for i, col in enumerate(editable_cols):
             val = row.get(col, "")
             typ = _infer_type(val)
 
-            #label for the column name is the column name from the csv
             lbl = ttk.Label(inner, text=f"{col}:", font=("Arial", 10, "bold"))
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
 
-            #use entry widget to change values
-            entvar = tk.StringVar(value="" if pd.isna(val) else str(val))
-            ent = ttk.Entry(inner, textvariable=entvar, width=50)
-            ent.grid(row=i, column=1, sticky="we", padx=6, pady=6)
-            controls[col] = ("str", entvar)
-        #right column should expand with window
+            #Widget selection
+
+            if col == "City:":
+                var=tk.StringVar(value=str(val))
+                widget=ttk.Combobox(inner, textvariable=var, values=Citys, state="readonly")
+
+            elif col == "Municipality:":
+                var=tk.StringVar(value=str(val))
+                widget=ttk.Combobox(inner, textvariable=var, values=Municipalitys, state="readonly")
+
+            elif typ == "bool" or col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
+                var = tk.StringVar(value=str(val))
+                widget = ttk.Combobox(inner, textvariable=var, values=["True", "False"], state="readonly")
+
+            elif col == "Favorited":
+                var = tk.StringVar(value=str(val))
+                widget = ttk.Combobox(inner, textvariable=var, values=["0", "1"], state="readonly")
+
+            elif col == "Submitter's Name:":
+                var = tk.StringVar(value=str(val))
+                widget = ttk.Combobox(inner, textvariable=var, values=sub_names, state="readonly")
+
+            elif col.startswith("Submitter's Email"):
+                var = tk.StringVar(value=str(val))
+                widget = ttk.Combobox(inner, textvariable=var, values=sub_emails, state="readonly")
+
+            else:
+                var = tk.StringVar(value="" if pd.isna(val) else str(val))
+                widget = ttk.Entry(inner, textvariable=var, width=50)
+
+            widget.grid(row=i, column=1, sticky="we", padx=6, pady=6)
+            controls[col] = (typ, var)
+
         inner.grid_columnconfigure(1, weight=1)
 
-        # Buttons at bottom
+        # Buttons
         btnfrm = ttk.Frame(edit_win, padding=6)
         btnfrm.pack(fill="x", side="bottom")
 
-        #when saving the data, it needs to be updated and backed up, treeview should also be updated
         def OnSave():
             updates = {}
-            #read each control and convert to inferred datatype
-            for col, (kind, ctl) in controls.items():
+
+            # Convert values
+            for col, (typ, var) in controls.items():
+                val = var.get()
                 try:
-                    s = ctl.get().strip()
-                    orig_val = row.get(col, "")
-                    orig_kind = _infer_type(orig_val)
-                    if s == "":
-                        #store empty string if value is ""
-                        newv = ""
-                    elif orig_kind == "int":
-                        #try int conversion
-                        try:
-                            newv = int(s)
-                        except Exception:
-                            newv = s
-                    elif orig_kind == "float":
-                        #try float conversion
-                        try:
-                            newv = float(s)
-                        except Exception:
-                            newv = s
+                    if typ == "int":
+                        updates[col] = int(val) if val else None
+                    elif typ == "float":
+                        updates[col] = float(val) if val else None
+                    elif typ == "bool":
+                        updates[col] = val == "True"
                     else:
-                        newv = s
-                    updates[col] = newv
-                except Exception as e:
-                    #show conversion error and do not save
-                    messagebox.showerror("Conversion error", f"Error parsing column {col}: {e}")
-                    return
-                
+                        updates[col] = val
+                except:
+                    updates[col] = val
+
+            # Notes handling
             if "Notes" in updates:
                 raw = updates["Notes"]
-                NewInput = (raw or "").strip()
+                new_input = (raw or "").strip()
 
-                # read current notes robustly (handle NaN/None)
-                old_raw = None
-                if "Notes" in self.df.columns:
-                    old_raw = self.df.at[idx, "Notes"]
-                if pd.isna(old_raw) or old_raw is None:
-                    previousNotes = ""
-                else:
-                    previousNotes = str(old_raw)
+                old_raw = self.df.at[idx, "Notes"] if "Notes" in self.df.columns else ""
+                previous_notes = "" if pd.isna(old_raw) else str(old_raw)
 
-                # if user left the edit blank, do not overwrite existing notes
-                if NewInput == "":
+                if new_input == "":
                     updates.pop("Notes", None)
                 else:
-                    # optional timestamp - set to False to disable
-                    ADD_TIMESTAMP = True
-                    if ADD_TIMESTAMP:
-                        ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
-                        FormatNew = f"[{username}{ts}]{NewInput}"
-                    else:
-                        FormatNew = NewInput
+                    ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
+                    formatted = f"[{username}]{ts}{new_input}"
 
-                    # if the user pasted/edited full history (their input contains previousNotes),
-                    # trust their input exactly (do not prepend).
-                    if previousNotes and previousNotes.strip() and previousNotes in NewInput:
-                        combined = NewInput
+                    if previous_notes and previous_notes in new_input:
+                        combined = new_input
                     else:
-                        # avoid duplicate top entries
-                        if previousNotes.strip().startswith(FormatNew):
-                            combined = previousNotes
-                        else:
-                            combined = FormatNew if previousNotes.strip() == "" else f"{FormatNew}\n\n{previousNotes}"
+                        combined = formatted if not previous_notes else f"{formatted}\n\n{previous_notes}"
 
                     updates["Notes"] = combined
 
             try:
-                #apply updates to df
+                # Apply updates
                 for c, v in updates.items():
                     self.df.at[idx, c] = v
 
-                # backup original CSV
-                csv_path = CSV_PATH
-                try:
-                    if os.path.exists(csv_path):
-                        bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                        #rename original to backup
-                        os.replace(csv_path, bak_name)
-                except Exception as e:
-                    #warn if backup did not save
-                    messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
+                # Backup
+                if os.path.exists(CSV_PATH):
+                    bak = f"{os.path.splitext(CSV_PATH)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                    os.replace(CSV_PATH, bak)
 
-                # save DataFrame
-                try:
-                    self.df.to_csv(csv_path, index=False)
-                except Exception as e:
-                    messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
+                # Save
+                self.df.to_csv(CSV_PATH, index=False)
 
-                # refresh Treeview row
+                # Update Treeview
                 if hasattr(self, "_row_ids") and idx in self._row_ids:
                     iid = self._row_ids[idx]
-                    #build displayed values for Visible columns
                     vals = [self.df.at[idx, col] if col in self.df.columns else "" for col in VisibleColumns]
                     vals = [("" if pd.isna(v) else str(v)) for v in vals]
-                    try:
-                        self.tree.item(iid, values=vals)
-                    except Exception:
-                        #ignore if treeview update fails
-                        pass
+                    self.tree.item(iid, values=vals)
 
-                #inform user of save
-                messagebox.showinfo("Saved", "Property values updated and saved.")
-                try:
-                    edit_win.grab_release()
-                except Exception:
-                    pass
+                messagebox.showinfo("Saved", "Property updated.")
                 edit_win.destroy()
-            except Exception as e:
-                #catch unexpected update failures
-                messagebox.showerror("Update error", f"Failed to update property: {e}")
 
-        #function to close without saving
+            except Exception as e:
+                messagebox.showerror("Update error", f"Failed: {e}")
+
         def OnCancel():
-            try:
-                edit_win.grab_release()
-            except Exception:
-                pass
             edit_win.destroy()
 
-        #button has designated commands 
-        save_btn = ttk.Button(btnfrm, text="Save", command=OnSave)
-        cancel_btn = ttk.Button(btnfrm, text="Cancel", command=OnCancel)
-        save_btn.pack(side="right", padx=6)
-        cancel_btn.pack(side="right", padx=6)
-
-    # --- Add note helper ---
+        ttk.Button(btnfrm, text="Save", command=OnSave).pack(side="right", padx=6)
+        ttk.Button(btnfrm, text="Cancel", command=OnCancel).pack(side="right", padx=6)
+    #  Add note helper 
     def AddNote(self, idx, parent_win=None):
         #open dialog box to append note
         try:
@@ -1574,7 +1593,7 @@ class App(tk.Tk):
         ttk.Button(btnframe, text="Add", command=OnAdd).pack(side="right", padx=6)
         ttk.Button(btnframe, text="Cancel", command=OnCancel).pack(side="right", padx=6)
         
-# --- Run App ---
+#  Run App 
 if __name__ == "__main__":
     app = App()
     app.mainloop()
