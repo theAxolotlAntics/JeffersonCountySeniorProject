@@ -1,6 +1,8 @@
 import json
 import logging
 from pathlib import Path
+from tkinterweb import HtmlFrame
+import tkinter as tk
 
 import folium
 import geopandas as gpd  # for creating the map
@@ -9,8 +11,6 @@ from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling fo
 from shapely.geometry import Point  # for displaying the pinned location on the map
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
 import re
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 
 
 #@author:  Brunner Good
@@ -49,7 +49,24 @@ status_colors = {
 }
 
 # Reuse a single Nominatim instance (respect API usage)
-GEOLocator = Nominatim(user_agent="Jefferson County Economic Development", timeout=5)
+GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
+
+
+def show_map_in_tkinter(html_path: Path, target: str = None):
+    win = tk.Toplevel()
+    win.title("Map Viewer")
+    win.geometry("900x700")
+
+    frame = HtmlFrame(win, horizontal_scrollbar="auto")
+    frame.pack(fill="both", expand=True)
+
+    if target:
+        url = f"{html_path}?target={target}"
+    else:
+        url = str(html_path)
+
+    frame.load_file(url)
+
 
 def validate(val):
     """
@@ -72,7 +89,7 @@ def _save_geocode_cache(cache: dict):
     except Exception as e:
         logger.warning("Failed to write geocode cache: %s", e)
 
-def geocode_address(address, label, status, cache, retries=3, delay=1.0):
+def geocode_address(address, label, status, cache, retries=2, delay=1.0):
     if not address or not isinstance(address, str):
         logger.debug("Empty or invalid address provided.")
         return None
@@ -102,84 +119,6 @@ def geocode_address(address, label, status, cache, retries=3, delay=1.0):
     logger.error("Failed to geocode after %d attempts: %s", retries, address)
     return None
 
-def create_map(address: str, ID: str, cache, status: str, force_refresh: bool = False) -> Path:
-    """
-    Create (or return cached) HTML map for the given address/ID.
-    - address: address string to geocode
-    - ID: unique identifier used to name the cached HTML file
-    - force_refresh: if True, recreates the map even if a cached file exists
-    Returns the Path to the saved HTML file.
-    """
-    # sanitize ID for filename
-    
-    filename = f"{ID}_Map"
-    out_path = CACHE_DIR / filename
-    html_path = out_path.with_suffix(".html")
-    png_path = out_path.with_suffix(".png")
-
-    if html_path.exists() and png_path.exists() and not force_refresh:
-        logger.info("Using cached map: %s", html_path)
-        return out_path
-
-    shapefile_path = BASE_DIR / "resources" / "shapeData" / "PaMunicipalities2025_07.shp"
-    if not shapefile_path.exists():
-        raise FileNotFoundError(f"Shapefile not found: {shapefile_path}")
-
-    # Read shapefile and filter to Jefferson county
-    municipalities = gpd.read_file(shapefile_path, engine='pyogrio')
-    municipalities = municipalities.to_crs(epsg=4326)
-    if 'COUNTY_NAM' not in municipalities.columns:
-        logger.warning("Expected 'COUNTY_NAM' in shapefile; skipping county filter.")
-    else:
-        municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
-
-    # geocode the address and add pin if successful
-    pin = geocode_address(address, label=ID, cache=cache, status=status)
-    color = status_colors.get(status, "black")  # default if status is None
-    if pin is not None:
-        lon, lat = pin["lon"], pin["lat"] 
-        folium_map = folium.Map(location=[lat, lon], zoom_start=15)
-        # add county polygons
-        folium.GeoJson(
-            municipalities,
-            tooltip=folium.GeoJsonTooltip(# this one shows on hover
-                fields=["MUNICIPAL1"], 
-                aliases=["Municipality:"],
-                localize=True,
-                sticky=True
-            ),
-            #popup=folium.GeoJsonPopup( #this one requires clicking
-            #    fields=["MUNICIPAL"],  
-            #    aliases=["Municipality:"],
-            #    localize=True
-            #)
-        ).add_to(folium_map)
-        # add pin
-        folium.Marker([lat, lon], icon=folium.Icon(color=color), popup=f"{ID}\n{status}").add_to(folium_map)
-    else:
-        return None  # could not geocode address      
-        
-    # save the folium map to cachedMaps
-    try:
-        folium_map.save(str(out_path.with_suffix(".html")))
-        logger.info("Saved map to: %s", out_path)
-        # Screenshot to PNG
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--window-size=800,600")
-
-        driver = webdriver.Chrome(options=options)
-        driver.get(out_path.with_suffix(".html").as_uri())
-        time.sleep(1)  # wait for tiles to load
-        driver.save_screenshot(str(out_path.with_suffix(".png")))
-        driver.quit()
-
-    except Exception as e:
-        logger.exception("Failed to save map to %s: %s", out_path, e)
-        raise
-
-    return out_path
-
 def generate_full_map(geocode_cache):
     """
     Creates a map with all addresses in the geocode_cache dict
@@ -195,20 +134,63 @@ def generate_full_map(geocode_cache):
     if 'COUNTY_NAM' in municipalities.columns:
         municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
 
-    # --- Convert dict → GeoDataFrame ---
+    # --- Convert dict to GeoDataFrame ---
     records = []
     for addr, coords in geocode_cache.items():
+        # sanitize marker name for JS + URL safety
+        safe_name = re.sub(r"[^A-Za-z0-9_]", "_", addr)
+
         records.append({
-            "name": addr,
+            "name": safe_name,
             "lon": coords["lon"],
             "lat": coords["lat"],
             "status": coords.get("status"),
             "geometry": Point(coords["lon"], coords["lat"])
         })
+
     pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
 
-    # Base map centered on county
-    folium_map = folium.Map(location=[41.16, -79.06], zoom_start=10)
+    # use the custom-built map, so that we don't get rate limited
+    folium_map = folium.Map(
+                location=[41.16, -79.06],
+                zoom_start=12,
+                tiles=None
+    )
+    # Add JS for zooming to markers
+    folium_map.get_root().html.add_child(folium.Element("""
+<script>
+
+var markerIndex = {};
+
+function registerMarker(name, marker) {
+    markerIndex[name] = marker;
+}
+
+function zoomToMarker(name) {
+    var m = markerIndex[name];
+    if (m) {
+        map.setView(m.getLatLng(), 17);
+        m.openPopup();
+    }
+}
+
+window.onload = function() {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("target");
+    if (target) {
+        zoomToMarker(target);
+    }
+};
+
+</script>
+    """))
+    folium.TileLayer(
+                tiles="file://" + str((BASE_DIR / "resources" / "tiles" / "{z}" / "{x}" / "{y}.png").resolve()),
+                attr="© OpenStreetMap contributors",
+                name="Local Tiles",
+                overlay=False,
+                control=False
+    ).add_to(folium_map)
 
     # Add county polygons
     folium.GeoJson(
@@ -224,21 +206,24 @@ def generate_full_map(geocode_cache):
     # --- Add pins from GeoDataFrame ---
 
     for _, row in pins_gdf.iterrows():
-        color = status_colors.get(row["status"], "black")  # default if status is None
-        folium.Marker([row["lat"], row["lon"]], icon=folium.Icon(color=color), popup=f"{row['name']}\n{row['status']}", ).add_to(folium_map)
+        color = status_colors.get(row["status"], "black")
+        marker = folium.Marker(
+            [row["lat"], row["lon"]],
+            icon=folium.Icon(color=color),
+            popup=f"{row['name']}\n{row['status']}"
+        )
+        marker.add_to(folium_map)
 
+        # Register marker in JS
+        folium_map.get_root().html.add_child(folium.Element(
+            f"<script>registerMarker('{row['name']}', {marker.get_name()});</script>"
+        ))
     # Save HTML
     html_path = out_path.with_suffix(".html")
     folium_map.save(str(html_path))
+    logger.info("Saved map to: %s", html_path)
 
-    # Screenshot to PNG
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--window-size=800,600")
-    driver = webdriver.Chrome(options=options)
-    driver.get(html_path.as_uri())
-    time.sleep(2)
-    driver.save_screenshot(str(out_path.with_suffix(".png")))
-    driver.quit()
+    # Show inside Tkinter
+    show_map_in_tkinter(html_path)
 
-    return out_path.with_suffix(".png")
+    return out_path
