@@ -11,14 +11,14 @@ MIN_LON = -79.55
 MAX_LON = -78.55
 
 # Zoom levels needed for full map + property previews
-ZOOMS = [8, 9, 10, 11, 12, 13, 14, 15]
+ZOOMS = [8, 9, 10, 11, 12, 13, 14, 15, 16]
 
 # Output folder
 TILE_DIR = Path("resources/tiles")
 
 # Required by OSM policy
 HEADERS = {
-    "User-Agent": "JeffersonCountyPropertyViewer/0.7.6 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject)"
+    "User-Agent": "JeffersonCountyPropertyViewer/1.0 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject)"
 }
 
 def deg2num(lat_deg, lon_deg, zoom):
@@ -47,7 +47,7 @@ def download_tile(z, x, y):
     except Exception as e:
         print(f"Error downloading {url}: {e}")
 
-    sleep(0.15)  # polite delay
+    sleep(0.15)
 
 def main():
     for z in ZOOMS:

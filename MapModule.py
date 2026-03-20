@@ -162,7 +162,7 @@ function registerMarker(name, marker) {
 function zoomToMarker(name) {
     var m = markerIndex[name];
     if (m) {
-        map.setView(m.getLatLng(), 17);
+        map.setView(m.getLatLng(), 15);
         m.openPopup();
     }
 }
@@ -220,24 +220,15 @@ window.onload = function() {
     png_path = out_path.with_suffix(".png")
 
     try:
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--window-size=1200,900")
-
-        driver = webdriver.Chrome(options=chrome_options)
+        # Screenshot to PNG
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--window-size=800,600")
+        driver = webdriver.Chrome(options=options)
         driver.get(html_path.as_uri())
-
-        # wait for tiles to load
-        time.sleep(2.5)
-
-        screenshot = driver.get_screenshot_as_png()
-        with open(png_path, "wb") as f:
-            f.write(screenshot)
-
+        time.sleep(2)
+        driver.save_screenshot(str(out_path.with_suffix(".png")))
         driver.quit()
-        logger.info("Saved PNG screenshot to: %s", png_path)
 
     except Exception as e:
         logger.error("Failed to generate PNG screenshot: %s", e)
@@ -252,13 +243,11 @@ def generate_property_preview(full_map_html, safe_name, out_path):
     """
 
     try:
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--window-size=600,600")
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--window-size=800,600")
 
-        driver = webdriver.Chrome(options=chrome_options)
+        driver = webdriver.Chrome(options=options)
         driver.get(full_map_html.as_uri())
 
         # Wait for map JS to load
@@ -267,13 +256,9 @@ def generate_property_preview(full_map_html, safe_name, out_path):
         # Run your built-in JS zoom function
         driver.execute_script(f"zoomToMarker('{safe_name}')")
 
-        # Wait for tiles to load at the new zoom
-        time.sleep(1.2)
-
         # Screenshot
-        screenshot = driver.get_screenshot_as_png()
-        with open(out_path, "wb") as f:
-            f.write(screenshot)
+        time.sleep(1)  # wait for tiles to load
+        driver.save_screenshot(str(out_path.with_suffix(".png")))
 
         driver.quit()
         return out_path
