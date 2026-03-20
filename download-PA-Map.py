@@ -11,7 +11,7 @@ MIN_LON = -80.6
 MAX_LON = -74.7
 
 # Zoom levels you want
-ZOOMS = [10, 11, 12, 13, 14, 15]
+ZOOMS = [10, 11, 12, 13, 14]
 
 # Output folder
 TILE_DIR = Path("resources/tiles")
