@@ -21,7 +21,7 @@ import csv
 from pathlib import Path
 import webbrowser
 import getpass
-from MapModule import generate_full_map, _load_geocode_cache, validate, geocode_address, _save_geocode_cache, generate_property_preview
+from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache, validate
 
 
 
@@ -333,6 +333,7 @@ class App(tk.Tk):
         #apply and reset filters call respective commands
         self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
+        ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
 
     def CreateFullMap(self, openMap=True):
         # --- 1. Build a set of valid map_ids from the dataframe ---
@@ -925,24 +926,24 @@ class App(tk.Tk):
         # Build sanitized name
         safe_name = re.sub(r"[^A-Za-z0-9_]", "_", map_id)
 
-        full_map_html = CACHE_DIR / "Full_Map.html"
-        preview_path = CACHE_DIR / f"{safe_name}_preview.png"
+        # create the map, so that the status effects the pin color
+        out = create_map(map_address, ID=str(map_id), cache=cache, status=status, force_refresh= self.map_regen.get())
+        MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
+        MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
+        # Load PNG into Tkinter inside RightFrame
+        img = Image.open(MAP_PNG)
+        tk_img = ImageTk.PhotoImage(img)
 
-        preview = generate_property_preview(full_map_html, safe_name, preview_path)
+        label = tk.Label(RightFrame, image=tk_img)
+        label.image = tk_img
+        label.pack(fill="both", expand=True)
 
-        if preview and preview.exists():
-            img = Image.open(preview)
-            img = img.resize((350, 350))
-            tk_img = ImageTk.PhotoImage(img)
+        # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
 
-            map_label = tk.Label(win, image=tk_img, cursor="hand2")
-            map_label.image = tk_img
-            map_label.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
-
-            # Clicking opens full map
-            map_label.bind("<Button-1>", lambda e: webbrowser.open(full_map_html.as_uri()))
-        else:
-            tk.Label(win, text="Map preview unavailable").grid(row=1, column=1)
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
                 
         #place holder right frame that will hold html page of image 
         # NoteFrame for notes 

@@ -5,7 +5,7 @@ from pathlib import Path
 from time import sleep
 
 # Jefferson County bounding box + buffer
-MIN_LAT = 40.97
+MIN_LAT = 40.90
 MAX_LAT = 41.37
 MIN_LON = -79.55
 MAX_LON = -78.55
