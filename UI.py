@@ -37,8 +37,6 @@ from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling fo
 from shapely.geometry import Point  # for displaying the pinned location on the map
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
 import re
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 
 # Define global paths
 BASE_DIR = Path(__file__).parent
@@ -202,10 +200,6 @@ class App(tk.Tk):
         
 
         self.mode = tk.StringVar(value="Blight")  # NEW: "Blight" or "Inventory"
-
-        #Generate a fresh map
-        self.cache = _load_geocode_cache()
-        generate_full_map(self.cache)
         
         self.all_columns = list(self.df.columns)
         self.visible_columns= [col for col in VisibleColumns if col in self.all_columns]
@@ -223,6 +217,10 @@ class App(tk.Tk):
 
         self.BuildTree()
         self.ShowTree(self.df)
+
+        #Generate a fresh map
+        self.cache = _load_geocode_cache()
+        self.CreateFullMap()
 
     def ToggleMode(self):  # NEW
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
@@ -335,7 +333,6 @@ class App(tk.Tk):
         #apply and reset filters call respective commands
         self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
 
 
     #This fuction will create a map with all the adresses in the dataframe

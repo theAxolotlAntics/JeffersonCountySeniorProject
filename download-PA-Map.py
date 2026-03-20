@@ -4,14 +4,14 @@ import requests
 from pathlib import Path
 from time import sleep
 
-# Pennsylvania bounding box
-MIN_LAT = 39.7
-MAX_LAT = 42.3
-MIN_LON = -80.6
-MAX_LON = -74.7
+# Jefferson County bounding box
+MIN_LAT = 41.02
+MAX_LAT = 41.33
+MIN_LON = -79.41
+MAX_LON = -78.68
 
 # Zoom levels you want
-ZOOMS = [10, 11, 12, 13]
+ZOOMS = [10, 11, 12, 13, 14, 15]
 
 # Output folder
 TILE_DIR = Path("resources/tiles")
