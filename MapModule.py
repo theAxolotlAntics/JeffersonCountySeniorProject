@@ -144,11 +144,8 @@ def generate_full_map(geocode_cache):
     pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
 
     # use the custom-built map, so that we don't get rate limited
-    folium_map = folium.Map(
-                location=[41.16, -79.06],
-                zoom_start=12,
-                tiles=None
-    )
+    folium_map = folium.Map(tiles=None)
+    folium_map.fit_bounds([[40.97, -79.55], [41.37, -78.55]])
     # Add JS for zooming to markers
     folium_map.get_root().html.add_child(folium.Element("""
 <script>
@@ -223,11 +220,14 @@ window.onload = function() {
         # Screenshot to PNG
         options = Options()
         options.add_argument("--headless")
-        options.add_argument("--window-size=800,600")
+        options.add_argument("--window-size=2000,1500")
+
         driver = webdriver.Chrome(options=options)
+        driver.set_window_size(2000, 1500)
+        driver.execute_script("document.body.style.zoom='1.5'")
         driver.get(html_path.as_uri())
         time.sleep(2)
-        driver.save_screenshot(str(out_path.with_suffix(".png")))
+        driver.save_screenshot(str(out_path))
         driver.quit()
 
     except Exception as e:
@@ -244,10 +244,10 @@ def generate_property_preview(full_map_html, safe_name, out_path):
 
     try:
         options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--window-size=800,600")
+        options.add_argument("--window-size=900,900")
 
         driver = webdriver.Chrome(options=options)
+        driver.set_window_size(900, 900)
         driver.get(full_map_html.as_uri())
 
         # Wait for map JS to load
@@ -255,6 +255,17 @@ def generate_property_preview(full_map_html, safe_name, out_path):
 
         # Run your built-in JS zoom function
         driver.execute_script(f"zoomToMarker('{safe_name}')")
+        driver.execute_script("""
+return new Promise(resolve => {
+    let check = () => {
+        if (document.querySelectorAll('.leaflet-tile-loaded').length > 20)
+            resolve();
+        else
+            setTimeout(check, 100);
+    };
+    check();
+});
+""")
 
         # Screenshot
         time.sleep(1)  # wait for tiles to load
