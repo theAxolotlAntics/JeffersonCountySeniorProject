@@ -219,9 +219,6 @@ class App(tk.Tk):
         self.BuildTree()
         self.ShowTree(self.df)
 
-        #Generate a fresh map
-        self.CreateFullMap(False)
-
     def ToggleMode(self):  # NEW
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
         messagebox.showinfo("Mode Changed", f"Current mode: {self.mode.get()}")

@@ -238,9 +238,7 @@ def generate_full_map(geocode_cache):
     pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
 
     # use the custom-built map, so that we don't get rate limited
-    minx, miny, maxx, maxy = municipalities.total_bounds
-    folium_map = folium.Map(tiles=None, min_zoom=8, max_zoom= 16, zoom_start=10)
-    folium_map.fit_bounds([[miny, minx], [maxy, maxx]])
+    folium_map = folium.Map(tiles=None, min_zoom=8, max_zoom= 16, location=[41.16, -79.06], zoom_start=10)
     folium.TileLayer(
                 tiles="file://" + str((BASE_DIR / "resources" / "tiles" / "{z}" / "{x}" / "{y}.png").resolve()),
                 attr="© OpenStreetMap contributors",
