@@ -21,7 +21,7 @@ import csv
 from pathlib import Path
 import webbrowser
 import getpass
-from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache, validate
+from MapModule import generate_full_map, show_map_in_tkinter, _load_geocode_cache, validate
 
 
 #added some imports to support exe bundling
@@ -379,23 +379,7 @@ class App(tk.Tk):
         _save_geocode_cache(cache)
 
         # Generate map with all pins
-        png_path = generate_full_map(cache)
 
-        # Show in Tkinter window
-        new_win = tk.Toplevel(self)
-        new_win.title("Full Map of All Properties")
-
-        img = Image.open(png_path)
-        photo = ImageTk.PhotoImage(img)
-        label = tk.Label(new_win, image=photo)
-        label.image = photo
-        label.pack(padx=20, pady=20)
-                # Button to open full interactive map in browser
-        def open_in_browser(event=None):
-            webbrowser.open(MAP_HTML.as_uri())
-
-        # Bind left mouse click on the label to open_in_browser
-        label.bind("<Button-1>", open_in_browser)
 
     #create a new csv with the 
     def NewCSV(self):
