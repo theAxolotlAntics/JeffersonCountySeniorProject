@@ -1,8 +1,8 @@
 import json
 import logging
 from pathlib import Path
-from tkinterweb import HtmlFrame
-import tkinter as tk
+import math
+from PIL import Image, ImageDraw
 
 import folium
 import geopandas as gpd  # for creating the map
@@ -12,6 +12,9 @@ from shapely.geometry import Point  # for displaying the pinned location on the 
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
 import re
 
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import base64
 
 #@author:  Brunner Good
 
@@ -50,22 +53,6 @@ status_colors = {
 
 # Reuse a single Nominatim instance (respect API usage)
 GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
-
-
-def show_map_in_tkinter(html_path: Path, target: str = None):
-    win = tk.Toplevel()
-    win.title("Map Viewer")
-    win.geometry("900x700")
-
-    frame = HtmlFrame(win, horizontal_scrollbar="auto")
-    frame.pack(fill="both", expand=True)
-
-    if target:
-        url = f"{html_path}?target={target}"
-    else:
-        url = str(html_path)
-
-    frame.load_file(url)
 
 
 def validate(val):
@@ -109,6 +96,7 @@ def geocode_address(address, label, status, cache, retries=2, delay=1.0):
                 cache[key] = {"lon": lon, "lat": lat, "status" : status}  # add new entry
                 _save_geocode_cache(cache)            # save full dict
                 logger.info("Geocoded address '%s' -> (%s, %s)", address, lat, lon)
+                time.sleep(1.1)
                 return {"lon": lon, "lat": lat, "status": status}
             else:
                 logger.info("Address not found: %s", address)
@@ -137,7 +125,12 @@ def generate_full_map(geocode_cache):
     # --- Convert dict to GeoDataFrame ---
     records = []
     for addr, coords in geocode_cache.items():
-        # sanitize marker name for JS + URL safety
+
+        # Skip invalid or failed geocodes
+        if not coords or "lon" not in coords or "lat" not in coords:
+            print("Skipping invalid geocode entry:", addr, coords)
+            continue
+
         safe_name = re.sub(r"[^A-Za-z0-9_]", "_", addr)
 
         records.append({
@@ -223,7 +216,68 @@ window.onload = function() {
     folium_map.save(str(html_path))
     logger.info("Saved map to: %s", html_path)
 
-    # Show inside Tkinter
-    show_map_in_tkinter(html_path)
+    # --- Generate PNG screenshot using Selenium ---
+    png_path = out_path.with_suffix(".png")
 
-    return out_path
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--window-size=1200,900")
+
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.get(html_path.as_uri())
+
+        # wait for tiles to load
+        time.sleep(2.5)
+
+        screenshot = driver.get_screenshot_as_png()
+        with open(png_path, "wb") as f:
+            f.write(screenshot)
+
+        driver.quit()
+        logger.info("Saved PNG screenshot to: %s", png_path)
+
+    except Exception as e:
+        logger.error("Failed to generate PNG screenshot: %s", e)
+        png_path = None
+
+    return png_path
+
+def generate_property_preview(full_map_html, safe_name, out_path):
+    """
+    Loads the full map in Selenium, zooms to the specific marker,
+    and screenshots the viewport as a PNG preview.
+    """
+
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--window-size=600,600")
+
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.get(full_map_html.as_uri())
+
+        # Wait for map JS to load
+        time.sleep(1.2)
+
+        # Run your built-in JS zoom function
+        driver.execute_script(f"zoomToMarker('{safe_name}')")
+
+        # Wait for tiles to load at the new zoom
+        time.sleep(1.2)
+
+        # Screenshot
+        screenshot = driver.get_screenshot_as_png()
+        with open(out_path, "wb") as f:
+            f.write(screenshot)
+
+        driver.quit()
+        return out_path
+
+    except Exception as e:
+        logger.error("Failed to generate property preview: %s", e)
+        return None

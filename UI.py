@@ -21,7 +21,7 @@ import csv
 from pathlib import Path
 import webbrowser
 import getpass
-from MapModule import generate_full_map, show_map_in_tkinter, _load_geocode_cache, validate, geocode_address, _save_geocode_cache
+from MapModule import generate_full_map, _load_geocode_cache, validate, geocode_address, _save_geocode_cache, generate_property_preview
 
 
 
@@ -43,6 +43,7 @@ BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 # Define the cache once to speed up mapping
 cache = _load_geocode_cache()
+
 
 #favorited options
 favorited_options = ["0","1"]
@@ -219,8 +220,7 @@ class App(tk.Tk):
         self.ShowTree(self.df)
 
         #Generate a fresh map
-        self.cache = _load_geocode_cache()
-        self.CreateFullMap()
+        self.CreateFullMap(False)
 
     def ToggleMode(self):  # NEW
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
@@ -334,54 +334,88 @@ class App(tk.Tk):
         self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
 
+    def CreateFullMap(self, openMap=True):
+        # --- 1. Build a set of valid map_ids from the dataframe ---
+        valid_ids = set()
 
-    #This fuction will create a map with all the adresses in the dataframe
-    def CreateFullMap(self):        
+        for _, row in self.df.iterrows():
+            primary_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            valid_ids.add(primary_id)
 
-        for index, row in self.df.iterrows():
-            address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+            fallback1 = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            valid_ids.add(fallback1)
+
+            fallback2 = f"Property in {row.get('City:','')}"
+            valid_ids.add(fallback2)
+
+        # --- 2. Remove stale entries from cache ---
+        stale_keys = [k for k in cache.keys() if k not in valid_ids]
+        for k in stale_keys:
+            del cache[k]
+
+        # --- 3. Process each row and geocode only missing entries ---
+        for _, row in self.df.iterrows():
+            # Build primary address + ID
+            address_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            # create list of status flags for possible status and combination support
-            status_flags = []
 
-            if validate(row.get("Vacant Property:", "")):
-                    status_flags.append("Vacant")
+            # Build status string
+            flags = []
+            if validate(row.get("Vacant Property:", "")): flags.append("Vacant")
+            if validate(row.get("Property Blighted?", "")): flags.append("Blighted")
+            if validate(row.get("Residential", "")): flags.append("Residential")
+            if validate(row.get("Commercial", "")): flags.append("Commercial")
+            status = " ".join(flags) if flags else None
 
-            if validate(row.get("Property Blighted?", "")):
-                    status_flags.append("Blighted")
-
-            if validate(row.get("Residential", "")):
-                    status_flags.append("Residential")
-
-            if validate(row.get("Commercial", "")):
-                    status_flags.append("Commercial")
-            
-            # combine flags into a string
-            status = " ".join(status_flags) if status_flags else None
-
-            coords = geocode_address(address, label=map_id, status=status, cache=cache)
-            if coords:
-                cache[map_id] = coords  
+            # --- Primary geocode ---
+            if map_id not in cache:
+                coords = geocode_address(address_full, label=map_id, status=status, cache=cache)
             else:
-                address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-                coords = geocode_address(address, label=map_id, status=status, cache=cache)
-                if coords:
-                    cache[map_id] = coords  
-                else:
-                    address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                    map_id = f"Property in {row.get('City:','')}"
-                    coords = geocode_address(address, label=map_id, status=status, cache=cache)
-                    if coords:
-                        cache[map_id] = coords  
+                coords = cache[map_id]
 
-        # Save merged cache 
+            # --- Fallback 1 ---
+            if not coords:
+                fallback_addr = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                fallback_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                coords = geocode_address(fallback_addr, label=fallback_id, status=status, cache=cache)
+
+            # --- Fallback 2 ---
+            if not coords:
+                fallback_addr = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                fallback_id = f"Property in {row.get('City:','')}"
+                coords = geocode_address(fallback_addr, label=fallback_id, status=status, cache=cache)
+
+            # Save if valid
+            if coords:
+                cache[fallback_id if 'fallback_id' in locals() else map_id] = coords
+
+        # --- 4. Save cache once ---
         _save_geocode_cache(cache)
 
-        # open map with all pins
-        html_path = CACHE_DIR / "Full_Map.html"
-        show_map_in_tkinter(html_path)
+        # --- 5. Generate and show full map ---
+        if openMap:
+            full_map_path = generate_full_map(cache)
+            html_path = full_map_path.with_suffix(".html")
+            png_path = full_map_path.with_suffix(".png")
 
+            if not png_path.exists():
+                messagebox.showerror("Error", "Failed to generate map image.")
+                return
+
+            new_win = tk.Toplevel(self)
+            new_win.title("Full Map of All Properties")
+
+            img = Image.open(png_path)
+            photo = ImageTk.PhotoImage(img)
+
+            label = tk.Label(new_win, image=photo, cursor="hand2")
+            label.image = photo
+            label.pack(padx=20, pady=20)
+
+            def open_in_browser(event=None):
+                webbrowser.open(html_path.as_uri())
+
+            label.bind("<Button-1>", open_in_browser)
 
     #create a new csv with the 
     def NewCSV(self):
@@ -855,7 +889,7 @@ class App(tk.Tk):
         # Title label inside RightFrame
         tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
         # generate map html and png paths if none exist
-
+        
         # use the address to build an ID that makes sense
         map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
         # generate a valid address for the property
@@ -888,14 +922,28 @@ class App(tk.Tk):
                     map_address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
                     map_id = f"Property in {row.get('City:','')}".strip()
                     
-        # Build the sanitized marker name the same way MapModule does
-        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+        # Build sanitized name
         safe_name = re.sub(r"[^A-Za-z0-9_]", "_", map_id)
 
-        # Load the full map and zoom to this pin
-        full_map_path = CACHE_DIR / "Full_Map.html"
-        show_map_in_tkinter(full_map_path, target=safe_name)
-        
+        full_map_html = CACHE_DIR / "Full_Map.html"
+        preview_path = CACHE_DIR / f"{safe_name}_preview.png"
+
+        preview = generate_property_preview(full_map_html, safe_name, preview_path)
+
+        if preview and preview.exists():
+            img = Image.open(preview)
+            img = img.resize((350, 350))
+            tk_img = ImageTk.PhotoImage(img)
+
+            map_label = tk.Label(win, image=tk_img, cursor="hand2")
+            map_label.image = tk_img
+            map_label.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
+
+            # Clicking opens full map
+            map_label.bind("<Button-1>", lambda e: webbrowser.open(full_map_html.as_uri()))
+        else:
+            tk.Label(win, text="Map preview unavailable").grid(row=1, column=1)
+                
         #place holder right frame that will hold html page of image 
         # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
