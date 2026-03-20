@@ -21,7 +21,8 @@ import csv
 from pathlib import Path
 import webbrowser
 import getpass
-from MapModule import generate_full_map, show_map_in_tkinter, _load_geocode_cache, validate
+from MapModule import generate_full_map, show_map_in_tkinter, _load_geocode_cache, validate, geocode_address, _save_geocode_cache
+
 
 
 #added some imports to support exe bundling
@@ -201,6 +202,10 @@ class App(tk.Tk):
         
 
         self.mode = tk.StringVar(value="Blight")  # NEW: "Blight" or "Inventory"
+
+        #Generate a fresh map
+        self.cache = _load_geocode_cache()
+        generate_full_map(self.cache)
         
         self.all_columns = list(self.df.columns)
         self.visible_columns= [col for col in VisibleColumns if col in self.all_columns]
@@ -334,9 +339,7 @@ class App(tk.Tk):
 
 
     #This fuction will create a map with all the adresses in the dataframe
-    def CreateFullMap(self):
-        MAP_HTML = CACHE_DIR / "full_Map.html"
-        
+    def CreateFullMap(self):        
 
         for index, row in self.df.iterrows():
             address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
@@ -378,7 +381,9 @@ class App(tk.Tk):
         # Save merged cache 
         _save_geocode_cache(cache)
 
-        # Generate map with all pins
+        # open map with all pins
+        html_path = CACHE_DIR / "Full_Map.html"
+        show_map_in_tkinter(html_path)
 
 
     #create a new csv with the 
@@ -886,30 +891,16 @@ class App(tk.Tk):
                     map_address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
                     map_id = f"Property in {row.get('City:','')}".strip()
                     
-        out = create_map(map_address, ID=str(map_id), cache=cache, status=status, force_refresh= self.map_regen.get()) 
-        MAP_HTML = out.with_suffix(".html")
-        MAP_PNG = out.with_suffix(".png")
+        # Build the sanitized marker name the same way MapModule does
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+        safe_name = re.sub(r"[^A-Za-z0-9_]", "_", map_id)
+
+        # Load the full map and zoom to this pin
+        full_map_path = CACHE_DIR / "Full_Map.html"
+        show_map_in_tkinter(full_map_path, target=safe_name)
         
-        # Load PNG into Tkinter inside RightFrame
-
-        img = Image.open(MAP_PNG)
-        tk_img = ImageTk.PhotoImage(img)
-
-        label = tk.Label(RightFrame, image=tk_img)
-        label.image = tk_img
-        label.pack(fill="both", expand=True)
-
-        # Button to open full interactive map in browser
-        def open_in_browser(event=None):
-            webbrowser.open(MAP_HTML.as_uri())
-
-        # Bind left mouse click on the label to open_in_browser
-        label.bind("<Button-1>", open_in_browser)
-
-
-
         #place holder right frame that will hold html page of image 
-       # NoteFrame for notes 
+        # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
