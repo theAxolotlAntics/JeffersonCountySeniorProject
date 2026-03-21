@@ -3,6 +3,7 @@
 Jefferson County Property Viewer
 resources/cachedMaps
 chromium
+output
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

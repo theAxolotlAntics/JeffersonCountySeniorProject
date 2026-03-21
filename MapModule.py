@@ -55,15 +55,37 @@ status_colors = {
 GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
 
 # imma be honest, this is beyond me, this and the renderer are both the horrible, disfigured brainchildren of stealing stuff from stackoverflow and the like
+def get_chromium_path():
+    """
+    Returns the path to the bundled Chromium (Chrome for Testing).
+    Works both in development and inside a PyInstaller EXE.
+    """
+    base = getattr(sys, "_MEIPASS", Path(__file__).parent)
+    chromium = Path(base) / "chromium" / "chrome.exe"
+    if chromium.exists():
+        return str(chromium)
+    raise FileNotFoundError("Bundled Chromium not found.")
+
 def html_to_png(html_path, png_path, width=900, height=900):
-    subprocess.run([
-        sys.executable,
-        "renderer.py",
-        str(html_path),
-        str(png_path),
-        str(width),
-        str(height)
-    ])
+    browser = get_chromium_path()
+
+    html_path = Path(html_path).resolve()
+    png_path = Path(png_path).resolve()
+
+    cmd = [
+        browser,
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu-sandbox",
+        "--disable-dev-shm-usage",
+        f"--window-size={width},{height}",
+        f"--screenshot={png_path}",
+        html_path.as_uri()
+    ]
+
+    subprocess.run(cmd, check=True)
+
+
 
 def validate(val):
     """
