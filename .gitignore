@@ -2,7 +2,7 @@
 # ignore the fully compiled app?
 Jefferson County Property Viewer
 resources/cachedMaps
-
+chromium
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

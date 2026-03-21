@@ -12,9 +12,9 @@ from shapely.geometry import Point  # for displaying the pinned location on the 
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
 import re
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import base64
+import subprocess
+import sys
+
 
 #@author:  Brunner Good
 
@@ -54,6 +54,16 @@ status_colors = {
 # Reuse a single Nominatim instance (respect API usage)
 GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
 
+# imma be honest, this is beyond me, this and the renderer are both the horrible, disfigured brainchildren of stealing stuff from stackoverflow and the like
+def html_to_png(html_path, png_path, width=900, height=900):
+    subprocess.run([
+        sys.executable,
+        "renderer.py",
+        str(html_path),
+        str(png_path),
+        str(width),
+        str(height)
+    ])
 
 def validate(val):
     """
@@ -185,15 +195,7 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
         folium_map.save(str(out_path.with_suffix(".html")))
         logger.info("Saved map to: %s", out_path)
         # Screenshot to PNG
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--window-size=800,600")
-
-        driver = webdriver.Chrome(options=options)
-        driver.get(out_path.with_suffix(".html").as_uri())
-        time.sleep(1)  # wait for tiles to load
-        driver.save_screenshot(str(out_path.with_suffix(".png")))
-        driver.quit()
+        html_to_png(html_path = out_path.with_suffix(".html"), png_path = out_path.with_suffix(".png"))
 
     except Exception as e:
         logger.exception("Failed to save map to %s: %s", out_path, e)
@@ -257,7 +259,7 @@ def generate_full_map(geocode_cache):
             sticky=True
         )
     ).add_to(folium_map)
-
+    
     # --- Add pins from GeoDataFrame ---
 
     for _, row in pins_gdf.iterrows():
@@ -269,34 +271,12 @@ def generate_full_map(geocode_cache):
         )
         marker.add_to(folium_map)
 
-        # Register marker in JS
-        folium_map.get_root().html.add_child(folium.Element(
-            f"<script>registerMarker('{row['name']}', {marker.get_name()});</script>"
-        ))
     # Save HTML
     html_path = out_path.with_suffix(".html")
     folium_map.save(str(html_path))
     logger.info("Saved map to: %s", html_path)
 
-    # --- Generate PNG screenshot using Selenium ---
-    try:
-        # Screenshot to PNG
-        options = Options()
-        options.add_argument("--headless=new")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--window-size=2000,1500")
-
-        driver = webdriver.Chrome(options=options)
-        driver.set_window_size(2000, 1500)
-        driver.get(html_path.as_uri())
-        time.sleep(3)
-        driver.save_screenshot(str(out_path.with_suffix(".png")))
-        driver.quit()
-
-    except Exception as e:
-        logger.error("Failed to generate PNG screenshot: %s", e)
-        png_path = None
+    # --- Generate PNG screenshot using  ---
+    html_to_png(html_path = out_path.with_suffix(".html"), png_path = out_path.with_suffix(".png"))
 
     return out_path
