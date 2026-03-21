@@ -2,9 +2,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 def get_chromium_path():
     # When running as EXE, Chromium is inside sys._MEIPASS
-    base = getattr(sys, "_MEIPASS", Path(__file__).parent)
+    base = Path(__file__).parent
     chromium = Path(base) / "chromium" / "chrome.exe"
     if chromium.exists():
         return str(chromium)
