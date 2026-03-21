@@ -19,8 +19,10 @@ def render(html_path, png_path, width, height):
     cmd = [
         browser,
         "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu-sandbox",
+        "--disable-dev-shm-usage",
         f"--window-size={width},{height}",
-        "--disable-gpu",
         f"--screenshot={png_path}",
         html_path.as_uri()
     ]
