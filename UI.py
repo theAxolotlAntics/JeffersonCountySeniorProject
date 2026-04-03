@@ -9,21 +9,23 @@ from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, UnidentifiedImageError, ImageOps
 import pandas as pd
 import requests
-import io
+from  io import BytesIO
 import re
 import os
 from datetime import datetime, timedelta
 
 #to create new csv's
 import csv
-
 #added imporrts for image and mapping
 from pathlib import Path
 import webbrowser
 import getpass
 from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache, validate
 
-
+#to add calendar UI
+from tkcalendar import Calendar
+from tkinter import font
+import emoji
 
 #added some imports to support exe bundling
 import json
@@ -37,13 +39,14 @@ from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling fo
 from shapely.geometry import Point  # for displaying the pinned location on the map
 import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
 import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 # Define global paths
 BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 # Define the cache once to speed up mapping
 cache = _load_geocode_cache()
-
 
 #favorited options
 favorited_options = ["0","1"]
@@ -56,66 +59,177 @@ sub_emails = ["egrovanz@jeffersoncountypa.gov", "jseary@jeffersoncountypa.gov", 
 
 
 
-#Take an image link - preferably from Google Drive and create a list of URL's for downloading
-def FindLinkFormat(url: str):
-    # if url is not a valid string or not a google drive link, return
-    if not isinstance(url, str) or "drive.google.com" not in url:
-        return [url]
+###Take an image link - preferably from Google Drive and create a list of URL's for downloading
+##def FindLinkFormat(url: str):
+##    # if url is not a valid string or not a google drive link, return
+##    if not isinstance(url, str) or "drive.google.com" not in url:
+##        return [url]
+##
+##    candidates = []
+##    # keep if the url is already in the uc? format
+##    if "drive.google.com/uc?" in url:
+##        candidates.append(url)
+##
+##    #url may contain the phrase /d/
+##    m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
+##    if m:
+##        fid = m.group(1)
+##        #take the fileid if it ends in any of these examples
+##        candidates += [
+##            f"https://docs.google.com/uc?export=view&id={fid}",
+##            f"https://docs.google.com/uc?export=download&id={fid}",
+##            f"https://docs.google.com/thumbnail?id={fid}"
+##        ]
+##
+##    #the url might end in ?id= or &id=
+##    m2 = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url)
+##    if m2:
+##        #if the url has this build, grab the file id
+##        fid = m2.group(1)
+##        candidates += [
+##            f"https://drive.google.com/uc?export=view&id={fid}",
+##            f"https://drive.google.com/uc?export=download&id={fid}",
+##            f"https://drive.google.com/thumbnail?id={fid}"
+##        ]
+##
+##    candidates.append(url)
+##    #make sure there are no duplicate url's
+##    seen = set()
+##    out = []
+##    for c in candidates:
+##        if c not in seen:
+##            seen.add(c)
+##            out.append(c)
+##    return out
+##
+###Download and open an image from a URL
+##def FindImageFromURL(url: str, timeout=10):
+##    candidates = FindLinkFormat(url)
+##    RecentError = None
+##    #try each url until one returns an image
+##    for candidate in candidates:
+##        try:
+##            resp = requests.get(candidate, stream=True, timeout=timeout)
+##            ctype = (resp.headers.get("Content-Type") or "").lower()
+##            if ctype.startswith("image/"):
+##                data = resp.content
+##                img = Image.open(io.BytesIO(data))
+##                img.load()
+##                return img #return PIL image if successful
+##        except Exception as e:
+##            RecentError = e #raise runtime error if no url's work
+##    raise RuntimeError(f"Unable to fetch image. Last error: {RecentError}")
+##
+##def extract_drive_id(url):
+##        # Pattern 1: /d/<ID>/
+##        m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
+##        if m:
+##            return m.group(1)
+##
+##        # Pattern 2: id=<ID>
+##        m = re.search(r"id=([a-zA-Z0-9_-]+)", url)
+##        if m:
+##            return m.group(1)
+##
+##        return None
+##
+##def load_google_drive_image(file_id):
+##        URL = "https://docs.google.com/uc?export=download"
+##        session = requests.Session()
+##        response = session.get(URL, params={'id': file_id}, stream=True)
+##        
+##        #sometimes requires a confirmation token for large files
+##
+##        for key, value in response.cookies.items():
+##            if key.startswith('download_warning'):
+##                token = value
+##                response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True)
+##                break
+##
+##        try:
+##            img = Image.open(BytesIO(response.content))
+##            img.load()
+##            img = ImageOps.exif_transpose(img)
+##            return img
+##        except Exception as e:
+##            print("Error loading Google Drive image:", e)
+##            return None
+##        
+##def normalize_image_paths(value):
+##    if value is None:
+##        return []
+##    if isinstance(value, float):  # catches NaN
+##        return []
+##    if isinstance(value, list):
+##        return value
+##    if not isinstance(value, str):
+##        value = str(value)
+##
+##    return [p.strip() for p in value.split(",") if p.strip()]
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-    candidates = []
-    # keep if the url is already in the uc? format
-    if "drive.google.com/uc?" in url:
-        candidates.append(url)
+def download_drive_image(file_id):
+    """Download image from Google Drive, handling confirmation tokens."""
+    URL = "https://drive.google.com/uc?export=download"
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True, headers=headers)
+    
+    # Check for confirmation token
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            token = value
+            response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True, headers=headers)
+            break
 
-    #url may contain the phrase /d/
-    m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
-    if m:
-        fid = m.group(1)
-        #take the fileid if it ends in any of these examples
-        candidates += [
-            f"https://drive.google.com/uc?export=view&id={fid}",
-            f"https://drive.google.com/uc?export=download&id={fid}",
-            f"https://drive.google.com/thumbnail?id={fid}"
-        ]
+    file_bytes = BytesIO(response.content)
+    img = Image.open(file_bytes)
+    img = ImageOps.exif_transpose(img)
+    return img
 
-    #the url might end in ?id= or &id=
-    m2 = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url)
-    if m2:
-        #if the url has this build, grab the file id
-        fid = m2.group(1)
-        candidates += [
-            f"https://drive.google.com/uc?export=view&id={fid}",
-            f"https://drive.google.com/uc?export=download&id={fid}",
-            f"https://drive.google.com/thumbnail?id={fid}"
-        ]
 
-    candidates.append(url)
-    #make sure there are no duplicate url's
-    seen = set()
-    out = []
-    for c in candidates:
-        if c not in seen:
-            seen.add(c)
-            out.append(c)
-    return out
 
-#Download and open an image from a URL
-def FindImageFromURL(url: str, timeout=10):
-    candidates = FindLinkFormat(url)
-    RecentError = None
-    #try each url until one returns an image
-    for candidate in candidates:
-        try:
-            resp = requests.get(candidate, stream=True, timeout=timeout)
-            ctype = (resp.headers.get("Content-Type") or "").lower()
-            if ctype.startswith("image/"):
-                data = resp.content
-                img = Image.open(io.BytesIO(data))
-                img.load()
-                return img #return PIL image if successful
-        except Exception as e:
-            RecentError = e #raise runtime error if no url's work
-    raise RuntimeError(f"Unable to fetch image. Last error: {RecentError}")
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        widget.bind("<Enter>", self.show)
+        widget.bind("<Leave>", self.hide)
+
+    def show(self, event=None):
+        if self.tip:
+            return
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + 20
+        self.tip = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(tw, text=self.text, background="lightyellow",
+                         relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide(self, event=None):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+            
+def open_calendar(parent,var):
+    top = tk.Toplevel(parent)
+
+    # Create the calendar widget
+    cal = Calendar(top, selectmode="day")
+    cal.pack(pady=10)
+    
+    # when date selected
+    def select_date():
+        selected_date = cal.get_date()
+        var.set(selected_date)
+        #print(selected_date)
+        top.destroy()
+
+            
+
+    ttk.Button(top, text="Select", command=select_date).pack(pady=5)
 
 # ---- Data ----
 
@@ -162,6 +276,12 @@ if not os.path.exists(CSV_PATH):
     sample.to_csv(CSV_PATH, index=False)
 
 Originaldf = pd.read_csv(CSV_PATH)
+date_cols = ["Start time", "Completion time", "Date of Property Review"]
+
+for col in date_cols:
+    if col in Originaldf.columns:
+        Originaldf[col] = pd.to_datetime(Originaldf[col], errors="coerce")
+            
 Title = "Blight Inventory"
 
 # columns wanted on the main page
@@ -189,6 +309,7 @@ def normalize(series):
     return series.astype(str).str.strip().str.lower()
 
 
+
 # ---- App ----
 class App(tk.Tk):
     def __init__(self):
@@ -210,6 +331,7 @@ class App(tk.Tk):
 
         self.menubar = tk.Menu(self)
         self.config(menu=self.menubar)
+        self.dark_mode = tk.BooleanVar(value=False)
 
         self.CreateToolMenu()
         self.CreateSettingsMenu()
@@ -223,7 +345,7 @@ class App(tk.Tk):
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
         messagebox.showinfo("Mode Changed", f"Current mode: {self.mode.get()}")
 
-    # --- Menu ---
+    #  Menu 
     def CreateToolMenu(self): #creates a tool bar with navigation buttons
         menubar = tk.Menu(self)
         filemenu = tk.Menu(menubar, tearoff=0)
@@ -237,12 +359,106 @@ class App(tk.Tk):
         settingsbar = tk.Menu(self)
         settingsmenu = tk.Menu(settingsbar, tearoff=0)
         settingsmenu.add_command(label="Change Mode", command=self.ToggleMode)  # NEW
-        settingsmenu.add_command(label="Themes")
+        settingsmenu.add_command(label="Themes", command=self.ShowThemesMenu)
         settingsmenu.add_command(label="Font Size")
         self.menubar.add_cascade(label="Settings", menu=settingsmenu)
         settingsmenu.add_command(label = "Show/Hide Columns", command=self.ShowColumnSelector)
+    def ShowThemesMenu(self):
+        top = tk.Toplevel(self)
+        top.title("Themes")
+        top.geometry("250x150")
+        top.grab_set()
+        top.configure(bg="#2b2b2b" if self.dark_mode.get() else "#f0f0f0")
 
-      # --- Toolbar ---
+        ttk.Label(top, text="Appearance", font=("Arial", 11, "bold")).pack(pady=10)
+
+        dark_check = ttk.Checkbutton(
+            top,
+            text="Dark Mode",
+            variable=self.dark_mode,
+            command=self.ApplyTheme
+        )
+        dark_check.pack(pady=5)
+
+    def ApplyTheme(self):
+                style = ttk.Style()
+
+                if self.dark_mode.get():
+                    # Use base theme
+                    style.theme_use("clam")
+
+                    bg = "#2b2b2b"
+                    fg = "#ffffff"
+                    field_bg = "#3c3f41"
+                    accent = "#4a90e2"
+
+                    self.configure(bg=bg)
+
+                    # General styles
+                    style.configure(".", background=bg, foreground=fg)
+
+                    style.configure("TFrame", background=bg)
+                    style.configure("TLabel", background=bg, foreground=fg)
+
+                    style.configure("TButton",
+                                    background=field_bg,
+                                    foreground=fg,
+                                    borderwidth=1)
+                    style.map("TButton",
+                              background=[("active", accent)])
+
+                    style.configure("TCheckbutton", background=bg, foreground=fg)
+
+                    style.configure("TCombobox",
+                        fieldbackground="#3c3f41",
+                        background="#3c3f41",
+                        foreground="white",
+                        arrowcolor="white"
+                    )
+                    style.configure("TEntry",
+                        fieldbackground="#3c3f41",
+                        foreground="white"
+                    )
+
+                    style.map("TCombobox",
+                        fieldbackground=[("readonly", "#3c3f41")],
+                        selectbackground=[("readonly", "#4a90e2")],
+                        selectforeground=[("readonly", "white")]
+                    )
+
+                
+                    style.configure("Treeview",
+                                    background="#2b2b2b",
+                                    foreground="white",
+                                    fieldbackground="#2b2b2b",
+                                    rowheight=25)
+
+                    style.map("Treeview",
+                              background=[("selected", "#4a90e2")],
+                              foreground=[("selected", "white")])
+
+                    style.configure("Treeview.Heading",
+                                    background="#3c3f41",
+                                    foreground="white")
+                    self.option_add("*TCombobox*Listbox.background", "#3c3f41")
+                    self.option_add("*TCombobox*Listbox.foreground", "white")
+                    self.option_add("*TCombobox*Listbox.selectBackground", "#4a90e2")
+                    self.option_add("*TCombobox*Listbox.selectForeground", "white")
+                    self.option_add("*Background", "#2b2b2b")
+                    self.option_add("*Foreground", "white")
+                    self.option_add("*Entry.Background", "#3c3f41")
+                    self.option_add("*Entry.Foreground", "white")
+                    self.option_add("*Entry.insertBackground", "white")  
+
+                else:
+                    # Reset to default light theme
+                    style.theme_use("default")
+                    self.configure(bg="#f0f0f0")
+                self.BuildTree()
+                self.ShowTree(self.df)
+
+
+      # Toolbar
     def CreateToolbar(self): #creates a tool bar with navigation buttons
         bar = ttk.Frame(self, padding=(8, 4))
         bar.pack(side="top", fill="x")
@@ -304,24 +520,40 @@ class App(tk.Tk):
         self.from_date = tk.StringVar()
         ttk.Entry(frm, textvariable=self.from_date,width=12).grid(row=1,column=1)
 
-        ttk.Label(frm, text="To Date").grid(row=1,column=2,sticky="w")
+        #calendar button
+        self.calbtn=ttk.Button(frm,text="📅",width=3,
+
+            command=lambda:open_calendar(frm,self.from_date))
+        self.calbtn.grid(row=1,column=2,padx=4)
+
+        ttk.Label(frm, text="To Date").grid(row=1,column=3,sticky="w")
         self.to_date = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.to_date,width=12).grid(row=1,column=3)
+        ttk.Entry(frm, textvariable=self.to_date,width=12).grid(row=1,column=4)
+
+        self.tobtn=ttk.Button(frm,text="📅",width=3,
+
+            command=lambda:open_calendar(frm,self.to_date)) 
+        self.tobtn.grid(row=1,column=5,padx=4)
 
         #ZipCode Filter
-        ttk.Label(frm,text="ZipCode:").grid(row=1,column=4,sticky="w")
+        ttk.Label(frm,text="ZipCode:").grid(row=1,column=6,sticky="w")
         zip_list = ["All"] + sorted(self.df["Zipcode:"].dropna().astype(str).unique().tolist())
 
         self.zip_var = tk.StringVar(value="All")
         self.zip = ttk.Combobox(frm, textvariable=self.zip_var,values=zip_list,state="readonly")
-        self.zip.grid(row=1,column=5,padx=6)
+        self.zip.grid(row=1,column=7,padx=6)
 
         #LastModified Filter
         self.modified_var = tk.StringVar(value="All")
         ttk.Label(frm,text="Last Modified").grid(row=2, column=0)
+        self.mod_date = tk.StringVar()
+        ttk.Entry(frm, textvariable=self.mod_date,width=12).grid(row=2,column=1)
 
-        ttk.Combobox(frm, textvariable=self.modified_var, values=["All", "Last 24 Hours", "Last 7 Days", "Last 30 Days"], state="readonly").grid(row=2,column=1)
+        self.modbtn=ttk.Button(frm,text="📅",width=3,
 
+            command=lambda:open_calendar(frm,self.mod_date))
+        self.modbtn.grid(row=2,column=2,padx=4)
+        
         # Buttons
         ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
 
@@ -330,90 +562,72 @@ class App(tk.Tk):
         #apply and reset filters call respective commands
         self.map_regen = tk.BooleanVar(value=False)
         ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Regen Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
+        ttk.Checkbutton(frm, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
 
-    def CreateFullMap(self, openMap=True):
-        # --- 1. Build a set of valid map_ids from the dataframe ---
-        valid_ids = set()
 
-        for _, row in self.df.iterrows():
-            primary_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            valid_ids.add(primary_id)
+    #This fuction will create a map with all the adresses in the dataframe
+    def CreateFullMap(self):
+        MAP_HTML = CACHE_DIR / "full_Map.html"
+        
 
-            fallback1 = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            valid_ids.add(fallback1)
-
-            fallback2 = f"Property in {row.get('City:','')}"
-            valid_ids.add(fallback2)
-
-        # --- 2. Remove stale entries from cache ---
-        stale_keys = [k for k in cache.keys() if k not in valid_ids]
-        for k in stale_keys:
-            del cache[k]
-
-        # --- 3. Process each row and geocode only missing entries ---
-        for _, row in self.df.iterrows():
-            # Build primary address + ID
-            address_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+        for index, row in self.df.iterrows():
+            address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            # create list of status flags for possible status and combination support
+            status_flags = []
 
-            # Build status string
-            flags = []
-            if validate(row.get("Vacant Property:", "")): flags.append("Vacant")
-            if validate(row.get("Property Blighted?", "")): flags.append("Blighted")
-            if validate(row.get("Residential", "")): flags.append("Residential")
-            if validate(row.get("Commercial", "")): flags.append("Commercial")
-            status = " ".join(flags) if flags else None
+            if validate(row.get("Vacant Property:", "")):
+                    status_flags.append("Vacant")
 
-            # --- Primary geocode ---
-            if map_id not in cache:
-                coords = geocode_address(address_full, label=map_id, status=status, cache=cache)
-            else:
-                coords = cache[map_id]
+            if validate(row.get("Property Blighted?", "")):
+                    status_flags.append("Blighted")
 
-            # --- Fallback 1 ---
-            if not coords:
-                fallback_addr = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                fallback_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-                coords = geocode_address(fallback_addr, label=fallback_id, status=status, cache=cache)
+            if validate(row.get("Residential", "")):
+                    status_flags.append("Residential")
 
-            # --- Fallback 2 ---
-            if not coords:
-                fallback_addr = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                fallback_id = f"Property in {row.get('City:','')}"
-                coords = geocode_address(fallback_addr, label=fallback_id, status=status, cache=cache)
+            if validate(row.get("Commercial", "")):
+                    status_flags.append("Commercial")
+            
+            # combine flags into a string
+            status = " ".join(status_flags) if status_flags else None
 
-            # Save if valid
+            coords = geocode_address(address, label=map_id, status=status, cache=cache)
             if coords:
-                cache[fallback_id if 'fallback_id' in locals() else map_id] = coords
+                cache[map_id] = coords  
+            else:
+                address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+                coords = geocode_address(address, label=map_id, status=status, cache=cache)
+                if coords:
+                    cache[map_id] = coords  
+                else:
+                    address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+                    map_id = f"Property in {row.get('City:','')}"
+                    coords = geocode_address(address, label=map_id, status=status, cache=cache)
+                    if coords:
+                        cache[map_id] = coords  
 
-        # --- 4. Save cache once ---
+        # Save merged cache 
         _save_geocode_cache(cache)
 
-        # --- 5. Generate and show full map ---
-        if openMap:
-            full_map_path = generate_full_map(cache)
-            html_path = full_map_path.with_suffix(".html")
-            png_path = full_map_path.with_suffix(".png")
+        # Generate map with all pins
+        png_path = generate_full_map(cache)
 
-            if not png_path.exists():
-                messagebox.showerror("Error", "Failed to generate map image.")
-                return
+        # Show in Tkinter window
+        new_win = tk.Toplevel(self)
+        new_win.title("Full Map of All Properties")
 
-            new_win = tk.Toplevel(self)
-            new_win.title("Full Map of All Properties")
+        img = Image.open(png_path)
+        photo = ImageTk.PhotoImage(img)
+        label = tk.Label(new_win, image=photo)
+        label.image = photo
+        label.pack(padx=20, pady=20)
+                # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
 
-            img = Image.open(png_path)
-            photo = ImageTk.PhotoImage(img)
-
-            label = tk.Label(new_win, image=photo, cursor="hand2")
-            label.image = photo
-            label.pack(padx=20, pady=20)
-
-            def open_in_browser(event=None):
-                webbrowser.open(html_path.as_uri())
-
-            label.bind("<Button-1>", open_in_browser)
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
 
     #create a new csv with the 
     def NewCSV(self):
@@ -465,6 +679,33 @@ class App(tk.Tk):
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save file:\n{e}")
+
+    #fit all columns to one window
+    def FitColumns(self, event=None):
+        total_width = self.tree.winfo_width()
+        columns = self.tree["columns"]
+
+        if not columns:
+            return
+
+        col_width = max(int(total_width / len(columns)), 120)
+
+        for col in columns:
+            self.tree.column(col, width=col_width, stretch=True)
+
+    def show(self, text, x, y):
+        if self.tip:
+            self.tip.destroy()
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(self.tip, text=text, background="lightyellow", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide(self):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
         
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # TreeView
@@ -524,7 +765,26 @@ class App(tk.Tk):
         # Configure headings + columns
         for col in self.visible_columns:
             self.tree.heading(col, text=col, command=lambda c=col: SortCol(c))
-            self.tree.column(col, width=150, anchor="w", minwidth=110)
+            self.tree.column(col, width=50, anchor="w",minwidth=50)
+
+##        # Auto fit columns
+##        self.tree.bind("<Configure>", self.FitColumns)
+##
+##                # --- Auto Fit Columns ---
+##        def fit_columns(event=None):
+##            total_width = self.tree.winfo_width()
+##            columns = self.tree["columns"]
+##
+##            if not columns:
+##                return
+##
+##            col_width = max(int(total_width / len(columns)), 120)
+##
+##            for col in columns:
+##                self.tree.column(col, width=col_width, stretch=True)
+##
+##        self.tree.bind("<Configure>", fit_columns)
+
 
         # Selection binding
         self.tree.bind("<<TreeviewSelect>>", self.Selected)
@@ -632,6 +892,7 @@ class App(tk.Tk):
 
         self.from_date.set("")
         self.to_date.set("")
+        self.mod_date.set("")
         self.zip_var.set("All")
         self.modified_var.set("All")
         self.SearchInput.set("")
@@ -639,8 +900,32 @@ class App(tk.Tk):
         self.df = Originaldf.copy()
         self.ShowTree(self.df)
 
-    
+    def ShowImage(self):
+        if not self.ImageList:
+            return
+        self.OriginalImage = self.ImageList[self.ImageIndex]
+        img = self.OriginalImage.copy()
+        # Resize to fit label
+        frame_width = self.ImageLabel.winfo_width() or 400
+        frame_height = self.ImageLabel.winfo_height() or 400
+        img.thumbnail((frame_width, frame_height), Image.LANCZOS)
+        self.tkimage = ImageTk.PhotoImage(img)
+        self.ImageLabel.config(image=self.tkimage)
+        self.ImageLabel.image = self.tkimage  # keep reference
 
+    def NextImage(self):
+        if not self.ImageList:
+            return
+        self.ImageIndex = (self.ImageIndex + 1) % len(self.ImageList)
+        self.ShowImage()
+
+    def PrevImage(self):
+        if not self.ImageList:
+            return
+        self.ImageIndex = (self.ImageIndex - 1) % len(self.ImageList)
+        self.ShowImage()
+    
+        
     # This function displays what happens when a row is selected on
         #It displays property details, an image from the csv, and the ability to edit all values or notes
     def Selected(self, event):
@@ -648,7 +933,6 @@ class App(tk.Tk):
         if not selected:
             return
 
-        # get dataframe index for selected row
         tag = self.tree.item(selected[0], "tags")[0]
         try:
             idx = int(tag)
@@ -657,74 +941,232 @@ class App(tk.Tk):
         row = self.df.loc[idx]
 
         win = tk.Toplevel(self)
-        #the title of the window is the address of the property (as requested)
-        win.title(f"Property Address: {row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}")
-        win.geometry("800x600") #minimum size of the window
+        win.title(f"Property Address: {row.get('Property Address Number:', '')} {row.get('Property Address Street Name:', '')}")
+        win.geometry("800x600")
         win.minsize(400, 300)
-        win.columnconfigure(0, weight=1)
-        win.columnconfigure(1, weight=1)
+        win.columnconfigure(0, weight=1,uniform="half")
+        win.columnconfigure(1, weight=1,uniform="half")
+        win.rowconfigure(0, weight=0)
         win.rowconfigure(1, weight=1)
+        win.rowconfigure(2, weight=1)
 
-
-
-        #  Top image frame (where the image is presented)
-        ImageFrame = ttk.Frame(win, height=max(120, win.winfo_height() // 3), relief="solid")
-        ImageFrame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
-        ImageFrame.grid_propagate(False)
-        #label shown while image loads
-        ImageLabel = tk.Label(ImageFrame, bg="lightgray", text="Loading image...", anchor="center", justify="center")
-        ImageLabel.pack(expand=True, fill="both")
-
-        #load the image
-        OriginalImage = None
-        img_path = row.get("ImagePath", None) #get the image from the ImagePath row
+                # --- UI ---
+        ImageFrame = ttk.Frame(win)
+        ImageFrame.grid(row=0,column=0,columnspan=2,sticky="nsew", padx=5,pady=5)
+        ImageFrame.rowconfigure(0,weight=1)
+        ImageFrame.columnconfigure(0,weight=1)
+        ImageFrame.columnconfigure(0, weight=1)
+        ImageFrame.columnconfigure(2, weight=1)
         
-        if img_path and isinstance(img_path, str) and img_path.strip():
-            img_path = img_path.strip()
-            try:
-                if img_path.startswith("http"): #grab url from the web
-                    OriginalImage = FindImageFromURL(img_path)
-                else:
-                    #if it is a local file path, verify that it exists
-                    if not os.path.exists(img_path):
-                        raise FileNotFoundError(f"Local file not found: {img_path}")
-                    OriginalImage = Image.open(img_path)
-                    OriginalImage.load()
+        ImageLabel = tk.Label(ImageFrame, text="No Images Available", bg="lightgray")
+        ImageLabel.grid(row=0,column=1,sticky="nsew")
 
-                #the image might be rotation, so correct that    
+        OriginalImages = []
+        image_index = 0
+
+         #function resizes the image, essentially bootstrapping
+        def ResizeImage(event=None):
+                    if not OriginalImages:
+                        ImageLabel.config(image="", text=ImageLabel.cget("text"))
+                        return
+
+                    try:
+                        FrameW = ImageFrame.winfo_width()
+                        FrameH = ImageFrame.winfo_height()
+                    except Exception:
+                        return
+
+                    if FrameW <= 1 or FrameH <= 1:
+                        win.after(80, ResizeImage)
+                        return
+
+                    MaxW, MaxH = MaxSize()
+                    FrameW = min(FrameW, MaxW)
+                    FrameH = min(FrameH, MaxH)
+
+                    try:
+                        iw, ih = OriginalImages[image_index].size
+                    except Exception:
+                        return
+
+                    ImageRatio = iw / ih if ih != 0 else 1
+                    frame_ratio = FrameW / FrameH if FrameH != 0 else 1
+
+                    if frame_ratio > ImageRatio:
+                        TargetH = FrameH
+                        TargetW = int(TargetH * ImageRatio)
+                    else:
+                        TargetW = FrameW
+                        TargetH = int(TargetW / ImageRatio)
+
+                    TargetW = min(TargetW, iw)
+                    TargetH = min(TargetH, ih)
+
+                    TargetW = max(1, int(TargetW))
+                    TargetH = max(1, int(TargetH))
+
+                    cur = getattr(ImageLabel, "_last_size", (0, 0))
+                    if (TargetW, TargetH) == cur:
+                        return
+
+                    ImageLabel._last_size = (TargetW, TargetH)
+
+                    try:
+                        resized = OriginalImages[image_index].resize((TargetW, TargetH), Image.LANCZOS)
+                    except Exception:
+                        resized = OriginalImages[image_index].copy()
+                        resized.thumbnail((TargetW, TargetH), Image.LANCZOS)
+
+                    photo = ImageTk.PhotoImage(resized)
+                    ImageLabel.config(image=photo, text="")
+                    ImageLabel.image = photo
+        #update image dynamically
+        ImageLabel.bind("<Configure>", ResizeImage)
+        win.bind("<Configure>", lambda e: ResizeImage(e))
+        win.after(150, ResizeImage)
+
+        def show_image(idx):
+            nonlocal image_index
+            if not OriginalImages:
+                ImageLabel.config(text="No Images Available")
+                return
+            image_index = idx % len(OriginalImages)
+            win.after(1,ResizeImage)
+
+        def next_image():
+            show_image(image_index + 1)
+
+        def prev_image():
+            show_image(image_index - 1)
+
+        btnPrev = tk.Button(ImageFrame, text="◀", command=prev_image)
+        btnPrev.grid(row=0,column=0, sticky="w", padx=5, pady=5)
+        btnNext = tk.Button(ImageFrame, text="▶", command=next_image)
+        btnNext.grid(row=0,column=2, sticky="e", padx=5, pady=5)
+
+        OriginalImages = []
+
+        image_paths = row.get("ImagePath:", "")
+
+        if image_paths:
+            paths = [p.strip() for p in str(image_paths).split(",")]
+
+            for p in paths:
                 try:
-                    OriginalImage = ImageOps.exif_transpose(OriginalImage)
-                except Exception:
-                    pass
-                
-                ImageLabel.config(text="") #clear the label after it has loaded
-            except Exception as e:
-                #if there is a problem, show error message
-                OriginalImage = None
-                ImageLabel.config(text=f"Image not available\n{e}")
-                print("ERROR loading image:", e)
-        else:
-            #if no image path exists
-            ImageLabel.config(text="No Image Available")
+                    # Google Drive link
+                    if "drive.google.com" in p:
+                        file_id = extract_drive_id(p)
+                        if file_id:
+                            img = download_drive_image(file_id)
+                            OriginalImages.append(img)
 
-        #Buttons outside frames
-        #these are displayed to be able to edit property values and add notes specific to the property
+                    # URL
+                    elif p.startswith("http"):
+                        response = requests.get(p)
+                        img = Image.open(BytesIO(response.content))
+                        img = ImageOps.exif_transpose(img)
+                        OriginalImages.append(img)
+
+                    # Local file
+                    elif os.path.exists(p):
+                        img = Image.open(p)
+                        img = ImageOps.exif_transpose(img)
+                        OriginalImages.append(img)
+
+                except Exception as e:
+                    print("Error loading image:", e)
+
+        show_image(0)
+        #root.mainloop()
+
+##        # Image carousel variables
+##        self.ImageList = []
+##        self.ImageIndex = 0
+##        self.OriginalImage = None
+##
+##        self.ImageFrame = ttk.Frame(win)
+##        self.ImageFrame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+##
+##        self.ImageLabel = ttk.Label(self.ImageFrame)
+##        self.ImageLabel.pack(expand=True)
+##
+##        # Prev/Next buttons
+##        ttk.Button(self.ImageFrame, text="◀", command=self.PrevImage).pack(side="left", padx=5, pady=5)
+##        ttk.Button(self.ImageFrame, text="▶", command=self.NextImage).pack(side="right", padx=5, pady=5)
+##
+##        
+##
+##        def load_image_from_url(url):
+##            try:
+##                response = requests.get(url)
+##                response.raise_for_status()
+##                img = Image.open(BytesIO(response.content))
+##                img.load()
+##                img = ImageOps.exif_transpose(img)
+##                # Detect HTML instead of image
+##                if response.content[:50].lower().startswith(b"<html"):
+##                    print("Google Drive returned HTML instead of an image. File may not be shared publicly.")
+##                    return None
+##
+##                return img
+##            except Exception as e:
+##                print("Error loading image from URL:", e)
+##                return None
+##
+##        img_paths = normalize_image_paths(row.get("ImagePath:", ""))
+##
+##        for p in img_paths:
+##            img = None
+##
+##            # Google Drive link
+##            if "drive.google.com" in p:
+##                file_id = extract_drive_id(p)   
+##                if file_id:
+##                    img = load_google_drive_image(file_id)
+##                else:
+##                    print("Could not extract Google Drive file ID:", p)
+##
+##            # Regular URL
+##            elif p.startswith("http"):
+##                img = load_image_from_url(p)
+##
+##            # Local file
+##            else:
+##                if os.path.exists(p):
+##                    try:
+##                        img = Image.open(p)
+##                        img.load()
+##                        img = ImageOps.exif_transpose(img)
+##                    except Exception as e:
+##                        print("Error loading local image:", e)
+##                        continue
+##                else:
+##                    print(f"Local file not found: {p}")
+##                    continue
+##
+##            if img:
+##                self.ImageList.append(img)
+##
+##
+##
+##
+##        if self.ImageList:
+##            self.ImageIndex = 0
+##            self.OriginalImage = self.ImageList[0]
+##            self.ShowImage()
+##        else:
+##            self.ImageLabel.config(text="No Image Available")
+
+        # Buttons for editing and notes
         EditBtn = ttk.Button(win, text="Edit Property Values", command=lambda i=idx: self.EditProperty(i, win))
         NoteBtn = ttk.Button(win, text="Add Note", command=lambda i=idx: self.AddNote(i, win))
-        
         EditBtn.grid(row=3, column=0, sticky="ew", padx=8, pady=(6, 8))
         NoteBtn.grid(row=3, column=1, sticky="ew", padx=8, pady=(6, 8))
 
-        # determine initial button text
-        fav_text = "Unfavorite" if self.df.at[idx, "Favorited"] == 1 else "Favorite"
-
-        FavBtn = ttk.Button(win,text=fav_text,command=lambda i=idx, b=None: self.ToggleFavorite(i, b))
-
-        # hack to pass the button instance to itself
-        FavBtn.config(command=lambda i=idx, b=FavBtn: self.ToggleFavorite(i, b))
-
-        FavBtn.grid(row=2, column=1, sticky="ew", padx=8, pady=(6, 8))
-
+##        fav_text = "Unfavorite" if self.df.at[idx, "Favorited"] == 1 else "Favorite"
+##        FavBtn = ttk.Button(win, text=fav_text)
+##        FavBtn.config(command=lambda i=idx, b=FavBtn: self.ToggleFavorite(i, b))
+##        FavBtn.grid(row=3, column=2, sticky="ew", padx=8, pady=(6, 8))
 
         # finds out how big the image should be based on the window size
         def MaxSize():
@@ -733,94 +1175,14 @@ class App(tk.Tk):
             WinW = max(300, win.winfo_width())
             MaxW = WinW - 40 #subtract padding
             return MaxW, MaxH
-        #function resizes the image, essentially bootstrapping
-        def ResizeImage(event=None):
-            nonlocal OriginalImage
-            if not OriginalImage:
-                #show place holder tet if there is no image available
-                ImageLabel.config(image="", text=ImageLabel.cget("text"))
-                return
-
-            #get new frame size
-            try:
-                if event is not None and getattr(event, "widget", None) is ImageFrame:
-                    FrameW = max(1, getattr(event, "width", ImageFrame.winfo_width()))
-                    FrameH = max(1, getattr(event, "height", ImageFrame.winfo_height()))
-                else:
-                    FrameW = ImageFrame.winfo_width()
-                    FrameH = ImageFrame.winfo_height()
-            except Exception:
-                FrameW = ImageFrame.winfo_width()
-                FrameH = ImageFrame.winfo_height()
-
-            #if the frame is not visible, try again soon
-            if FrameW <= 1 or FrameH <= 1:
-                win.after(80, ResizeImage)
-                return
-            
-            #apply maximum size limits
-            MaxW, MaxH = MaxSize()
-            ImageFrame.configure(height=MaxH)
-            FrameW = min(FrameW, MaxW)
-            FrameH = min(FrameH, MaxH)
-
-            #get image dimensions
-            try:
-                iw, ih = OriginalImage.size
-            except Exception:
-                return
-            if iw == 0 or ih == 0:
-                return
-
-            #get ratio of image
-            ImageRatio = iw / ih if ih != 0 else 1
-            frame_ratio = FrameW / FrameH if FrameH != 0 else 1
-            if frame_ratio > ImageRatio:
-                TargetH = FrameH
-                TargetW = int(TargetH * ImageRatio)
-            else:
-                TargetW = FrameW
-                TargetH = int(TargetW / ImageRatio)
-
-            #upscale is false so the image can maintain sharp
-            allow_upscale = False
-            if not allow_upscale:
-                TargetW = min(TargetW, iw)
-                TargetH = min(TargetH, ih)
-                
-            TargetW = max(1, int(TargetW))
-            TargetH = max(1, int(TargetH))
-
-            #if the size has not change, do not change the values
-            cur = getattr(ImageLabel, "_last_size", (0, 0))
-            if (TargetW, TargetH) == cur:
-                return
-            ImageLabel._last_size = (TargetW, TargetH)
-
-            try:
-                resized = OriginalImage.resize((TargetW, TargetH), Image.LANCZOS)
-            except Exception:
-                # fallback to thumbnail (in-place) if resize fails
-                try:
-                    resized = OriginalImage.copy()
-                    resized.thumbnail((TargetW, TargetH), Image.LANCZOS)
-                except Exception:
-                    return
-
-            #display new image in label once resized
-            photo = ImageTk.PhotoImage(resized)
-            ImageLabel.config(image=photo, text="")
-            ImageLabel.image = photo
-
-        #update image dynamically
-        ImageFrame.bind("<Configure>", ResizeImage)
-        win.bind("<Configure>", lambda e: ResizeImage(e))
-        win.after(150, ResizeImage)
+       
 
         
         # InfoFrame and RightFrame 
         InfoFrame=ttk.Frame(win,relief="solid",padding=5)
         InfoFrame.grid(row=1,column=0,sticky="nsew", padx=5,pady=5)
+        #InfoFrame.grid_propagate(False)
+        #InfoFrame.configure(height=200)
 
         InfoFrame.grid_rowconfigure(0,weight=1)
         InfoFrame.grid_columnconfigure(0,weight=1)
@@ -879,73 +1241,15 @@ class App(tk.Tk):
 
         ScrollFrame.grid_columnconfigure(1, weight=1)
 
-        #right frame that will hold html page of image 
-        #Newly implemented right frame should get the mapping functionality working??
-        RightFrame = ttk.Frame(win, relief="solid", padding=5)
-        RightFrame.grid(row=1, column=1, rowspan=2, sticky="nsew", padx=5, pady=5)
 
-        # Title label inside RightFrame
-        tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
-        # generate map html and png paths if none exist
-        
-        # use the address to build an ID that makes sense
-        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
-        # generate a valid address for the property
-        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
-        # create list of status flags for possible status and combination support
-        status_flags = []
 
-        if validate(row.get("Vacant Property:", "")):
-                status_flags.append("Vacant")
 
-        if validate(row.get("Property Blighted?", "")):
-                status_flags.append("Blighted")
-
-        if validate(row.get("Residential", "")):
-                status_flags.append("Residential")
-
-        if validate(row.get("Commercial", "")):
-                status_flags.append("Commercial")
-            
-        # combine flags into a string
-        status = " ".join(status_flags) if status_flags else None
-        # create the map, so that the status effects the pin color
-        test = geocode_address(map_address, label=map_id, status=status, cache=cache) 
-        if not test:
-                map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
-                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
-                test = geocode_address(map_address, label=map_id, status=status, cache=cache)
-
-                if not test:
-                    map_address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
-                    map_id = f"Property in {row.get('City:','')}".strip()
-                    
-        # Build sanitized name
-        safe_name = re.sub(r"[^A-Za-z0-9_]", "_", map_id)
-
-        # create the map, so that the status effects the pin color
-        out = create_map(map_address, ID=str(map_id), cache=cache, status=status, force_refresh= self.map_regen.get())
-        MAP_HTML = CACHE_DIR / f"{map_id}_Map.html"
-        MAP_PNG = CACHE_DIR / f"{map_id}_Map.png"
-        # Load PNG into Tkinter inside RightFrame
-        img = Image.open(MAP_PNG)
-        tk_img = ImageTk.PhotoImage(img)
-
-        label = tk.Label(RightFrame, image=tk_img)
-        label.image = tk_img
-        label.pack(fill="both", expand=True)
-
-        # Button to open full interactive map in browser
-        def open_in_browser(event=None):
-            webbrowser.open(MAP_HTML.as_uri())
-
-        # Bind left mouse click on the label to open_in_browser
-        label.bind("<Button-1>", open_in_browser)
-                
         #place holder right frame that will hold html page of image 
-        # NoteFrame for notes 
+       # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        #NoteFrame.grid_propagate(False)
+        #NoteFrame.configure(height=200)
 
         NoteFrame.rowconfigure(1, weight=1)
         NoteFrame.columnconfigure(0, weight=1)
@@ -1013,6 +1317,68 @@ class App(tk.Tk):
             if isinstance(val, float):
                 return "float"
             return "str"
+         #right frame that will hold html page of image 
+        #Newly implemented right frame should get the mapping functionality working??
+        RightFrame = ttk.Frame(win, relief="solid", padding=5)
+        RightFrame.grid(row=1, column=1, rowspan =2, sticky="nsew", padx=5, pady=5)
+        RightFrame.rowconfigure(1,weight=1)
+        RightFrame.columnconfigure(0,weight=1)
+
+        # Title label inside RightFrame
+        tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
+        # generate map html and png paths if none exist
+
+        # use the address to build an ID that makes sense
+        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
+        # generate a valid address for the property
+        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+        # create list of status flags for possible status and combination support
+        status_flags = []
+
+        if validate(row.get("Vacant Property:", "")):
+                status_flags.append("Vacant")
+
+        if validate(row.get("Property Blighted?", "")):
+                status_flags.append("Blighted")
+
+        if validate(row.get("Residential", "")):
+                status_flags.append("Residential")
+
+        if validate(row.get("Commercial", "")):
+                status_flags.append("Commercial")
+            
+        # combine flags into a string
+        status = " ".join(status_flags) if status_flags else None
+        # create the map, so that the status effects the pin color
+        test = geocode_address(map_address, label=map_id, status=status, cache=cache) 
+        if not test:
+                map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
+                test = geocode_address(map_address, label=map_id, status=status, cache=cache)
+
+                if not test:
+                    map_address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+                    map_id = f"Property in {row.get('City:','')}".strip()
+                    
+        out = create_map(map_address, ID=str(map_id), cache=cache, status=status, force_refresh= self.map_regen.get()) 
+        MAP_HTML = out.with_suffix(".html")
+        MAP_PNG = out.with_suffix(".png")
+        
+        # Load PNG into Tkinter inside RightFrame
+
+        img = Image.open(MAP_PNG)
+        tk_img = ImageTk.PhotoImage(img)
+
+        label = tk.Label(RightFrame, image=tk_img)
+        label.image = tk_img
+        label.pack(fill="both", expand=True)
+
+        # Button to open full interactive map in browser
+        def open_in_browser(event=None):
+            webbrowser.open(MAP_HTML.as_uri())
+
+        # Bind left mouse click on the label to open_in_browser
+        label.bind("<Button-1>", open_in_browser)
         
     def ToggleFavorite(self, idx, fav_btn):
         # safety check
@@ -1066,6 +1432,19 @@ class App(tk.Tk):
                 checkbox = ttk.Checkbutton(scroll_frame, text=col, variable=var)
                 checkbox.pack(anchor="w", padx=10, pady=2)
                 checkbox_vars[col] = var
+            def select_all():
+                for var in checkbox_vars.values():
+                    var.set(True)
+            def select_normal():
+                for col,var in checkbox_vars.items():
+                        if col in self.visible_columns:
+                                var.set(True)
+                        else:
+                                var.set(False)
+
+            def deselect_all():
+                for var in checkbox_vars.values():
+                    var.set(False)   
 
             def apply_changes():
                 self.visible_columns = [
@@ -1074,8 +1453,13 @@ class App(tk.Tk):
                 self.BuildTree()
                 self.ShowTree(self.df)  # repopulate tree
                 top.destroy()
-                
-            ttk.Button(top, text="Apply", command=apply_changes).pack(pady=10)
+            btn_frame = ttk.Frame(top)
+            btn_frame.pack(pady=10)
+
+            ttk.Button(btn_frame, text="Select All", command=select_all).pack(side="left", padx=5)
+            ttk.Button(btn_frame, text="Deselect All", command=deselect_all).pack(side="left", padx=5)
+            ttk.Button(btn_frame, text="Select Normal", command=select_normal).pack(side="left", padx=5)
+            ttk.Button(btn_frame, text="Apply", command=apply_changes).pack(side="left", padx=5)  
 
 
  #function that deletes a row from the csv, thus deleting from treeview
@@ -1150,182 +1534,175 @@ class App(tk.Tk):
         except Exception as e:
             messagebox.showerror("Delete error", f"Failed to delete row(s): {e}")
     
-    #function that adds appends a new property to csv
     def AddProperty(self):
-        new_values = [c for c in self.df.columns]
+        new_values = list(self.df.columns)
 
         new_win = tk.Toplevel(self)
         new_win.title("New Property")
-        new_win.geometry("620x520") #new window opens with these dimensions
-        new_win.minsize(420,300) #minimum size of window
+        new_win.geometry("620x520")
+        new_win.minsize(420, 300)
 
-        #scrollable area
+        # Scrollable area
+        addFrame = ttk.Frame(new_win, padding=8)
+        addFrame.pack(fill="both", expand=True)
 
-        addFrame = ttk.Frame(new_win,padding=8)
-        addFrame.pack(fill="both",expand=True)
+        addFrame.rowconfigure(0, weight=1)
+        addFrame.columnconfigure(0, weight=1)
 
-        addFrame.rowconfigure(0,weight=1)
-        addFrame.columnconfigure(0,weight=1)
-
-        #enables scrollable window
         newCanvas = tk.Canvas(addFrame)
         newVscroll = ttk.Scrollbar(addFrame, orient="vertical", command=newCanvas.yview)
         newHscroll = ttk.Scrollbar(addFrame, orient="horizontal", command=newCanvas.xview)
-        newCanvas.configure(yscrollcommand=newVscroll.set)
 
-        
-        newCanvas.configure(
-            yscrollcommand=newVscroll.set,
-            xscrollcommand=newHscroll.set
-        )
-
+        newCanvas.configure(yscrollcommand=newVscroll.set, xscrollcommand=newHscroll.set)
         newCanvas.grid(row=0, column=0, sticky="nsew")
         newVscroll.grid(row=0, column=1, sticky="ns")
         newHscroll.grid(row=1, column=0, sticky="ew")
 
-        # Scrollable frame
         ScrollFrame = ttk.Frame(newCanvas)
         canvas_window = newCanvas.create_window((0, 0), window=ScrollFrame, anchor="nw")
 
-        #keep the scroll space up-to-date whenever size changes
-        def configure_frame(event):
-            newCanvas.configure(scrollregion=newCanvas.bbox("all"))
+        ScrollFrame.bind("<Configure>", lambda e: newCanvas.configure(scrollregion=newCanvas.bbox("all")))
+        newCanvas.bind("<Configure>", lambda e: newCanvas.itemconfig(canvas_window, width=e.width))
 
-        ScrollFrame.bind("<Configure>", configure_frame)
-
-        # Resize inner frame with canvas
-        def configure_canvas(event):
-            newCanvas.itemconfig(canvas_window, width=event.width)
-
-        newCanvas.bind("<Configure>", configure_canvas)
-
-
-        #stores input controls to be read
+        # Store controls as (typ, var)
         controls = {}
-        
-        #each row will hold a new column detail
+
+        import re
+
+        # Build form
         for i, col in enumerate(new_values):
-            #label for the column name is the column name from the csv
+
             lbl = ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
 
-            if col == "City:":
-                var=tk.StringVar()
-                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=Citys, state="readonly")
+            var = tk.StringVar()
+            typ = "str"  # default type
+            validation = None
 
-            elif col == "Municipality:":
-                var=tk.StringVar()
-                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=Municipalitys, state="readonly")
-
-            #dropdown cases
-            elif col == "Favorited":
-                var=tk.StringVar(value=favorited_options[0])
-                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=favorited_options, state="readonly")
-
-            elif col == "Submitter's Name:":
-                var=tk.StringVar()
-                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=sub_names, state="readonly")
-
-            elif col ==  "Submitter's Email or Phone Number (this information will be used to collect any critical information or clear up any discrepancies)":
-                var=tk.StringVar()
-                widget=ttk.Combobox(ScrollFrame, textvariable=var, values=sub_emails, state="readonly")
-
-            elif col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
-                var = tk.StringVar(value="False")
-                widget = ttk.Combobox(ScrollFrame, textvariable=var,values=["True", "False"], state="readonly")
-            else:
-                #use entry widget to change values
-                var = tk.StringVar(value="")
+            # ID
+            if col == "ID":
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
-                
+                typ = "str"
+
+            # City
+            elif col == "City:":
+                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=Citys, state="readonly")
+
+            # Municipality
+            elif col == "Municipality:":
+                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=Municipalitys, state="readonly")
+
+            # Favorited
+            elif col == "Favorited":
+                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=["0", "1"], state="readonly")
+
+            # Submitter Name
+            elif col == "Submitter's Name:":
+                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=sub_names, state="readonly")
+
+            # Submitter Email/Phone
+            elif col.startswith("Submitter's Email"):
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+
+            # Boolean fields
+            elif col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
+                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=["True", "False"], state="readonly")
+                typ = "bool"
+
+            # Start time
+            elif col.startswith("Start time"):
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+                ttk.Button(
+                    ScrollFrame, text="📅", width=3,
+                    command=lambda v=var: open_calendar(new_win, v)
+                ).grid(row=i, column=2, padx=4)
+                typ = "date"
+
+            # Completion time
+            elif col.startswith("Completion time"):
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+                ttk.Button(
+                    ScrollFrame, text="📅", width=3,
+                    command=lambda v=var: open_calendar(new_win, v)
+                ).grid(row=i, column=2, padx=4)
+                typ = "date"
+
+            # Zipcode
+            elif col == "Zipcode:":
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+
+            # Address number
+            elif col == "Property Address Number:":
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+                typ = "int"
+
+            # Street name
+            elif col == "Property Address Street Name:":
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+
+            # Generic date fields
+            elif "time" in col.lower() or "date" in col.lower():
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+                typ = "date"
+
+            # Default text
+            else:
+                widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
+
             widget.grid(row=i, column=1, sticky="we", padx=6, pady=6)
-            controls[col] = var
-            
-        #right column should expand with window
+
+            # Store (typ, var)
+            controls[col] = (typ, var)
+
         ScrollFrame.grid_columnconfigure(1, weight=1)
 
-        # Buttons at bottom
+        # Buttons
         btnfrm = ttk.Frame(new_win, padding=6)
         btnfrm.pack(fill="x", side="bottom")
 
-        # When user clicks Save: gather controls, create new row, append, save, update tree
         def OnSave():
-            # read controls
             new_row = {}
-            for col, var in controls.items():
-                # leave empty string for blanks (consistent with other code)
-                new_row[col] = var.get()
 
-            # Generate Created and Modified timestamps
-            now_iso = datetime.now().isoformat()
-            if "Created" in new_row:
-                new_row["Created"] = now_iso
-            if "Modified" in new_row:
-                new_row["Modified"] = now_iso
+            for col, (typ, var) in controls.items():
+                val = var.get().strip()
 
-            # Generate ID if present and numeric
-            if "ID" in new_row:
-                try:
-                    # attempt to create a numeric ID: max existing numeric ID + 1
-                    existing_ids = pd.to_numeric(self.df["ID"], errors="coerce")
-                    if existing_ids.notna().any():
-                        max_id = int(existing_ids.max())
-                        new_id = max_id + 1
-                    else:
-                        new_id = len(self.df) + 1
-                    new_row["ID"] = new_id
-                except Exception:
-                    # fallback: use length+1 as ID (string)
-                    new_row["ID"] = len(self.df) + 1
+                if typ == "int":
+                    new_row[col] = int(val) if val else None
+                elif typ == "float":
+                    new_row[col] = float(val) if val else None
+                elif typ == "bool":
+                    new_row[col] = (val == "True")
+                elif typ == "date":
+                    new_row[col] = pd.to_datetime(val, errors="coerce")
+                else:
+                    new_row[col] = val
 
-            # Ensure all dataframe columns exist in the row (fill missing with "")
-            for c in self.df.columns:
-                if c not in new_row:
-                    new_row[c] = ""
-
-            # Append to dataframe
-            try:
-                appended = pd.DataFrame([new_row])
-                # keep original columns order
-                appended = appended[self.df.columns]
-                self.df = pd.concat([self.df, appended], ignore_index=True)
-            except Exception as e:
-                messagebox.showerror("Append error", f"Failed to append new row: {e}")
-                return
+            # Append new row
+            self.df.loc[len(self.df)] = new_row
 
             # Save CSV with backup
-            csv_path = CSV_PATH
-            try:
-                if os.path.exists(csv_path):
-                    bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    os.replace(csv_path, bak_name)
-            except Exception as e:
-                messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
+            if os.path.exists(CSV_PATH):
+                bak = f"{os.path.splitext(CSV_PATH)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                os.replace(CSV_PATH, bak)
 
-            try:
-                self.df.to_csv(csv_path, index=False)
-            except Exception as e:
-                messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
+            self.df.to_csv(CSV_PATH, index=False)
 
-            # Update Treeview: insert new row at end and record its iid
-            try:
-                idx = self.df.index[-1]
-                vals = [self.df.at[idx, col] if col in self.df.columns else "" for col in VisibleColumns]
-                vals = [("" if pd.isna(v) else str(v)) for v in vals]
-                iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
-                self._row_ids[idx] = iid
-            except Exception:
-                # if tree update fails, ignore but continue
-                pass
+            # Update Treeview
+            idx = len(self.df) - 1
+            vals = []
+            for col in VisibleColumns:
+                v = self.df.at[idx, col]
+                if isinstance(v, pd.Timestamp):
+                    v = v.strftime("%Y-%m-%d")
+                vals.append("" if pd.isna(v) else str(v))
 
-            messagebox.showinfo("Saved", "New property added and saved.")
-            try:
-                new_win.grab_release()
-            except Exception:
-                pass
+            iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
+            self._row_ids[idx] = iid
+
+            messagebox.showinfo("Saved", "New property added.")
             new_win.destroy()
 
-        #function to close without saving
+            #function to close without saving
         def OnCancel():
             try:
                 new_win.grab_release()
@@ -1338,8 +1715,8 @@ class App(tk.Tk):
         cancel_btn = ttk.Button(btnfrm, text="Cancel", command = OnCancel)
         save_btn.pack(side="right", padx=6)
         cancel_btn.pack(side="right", padx=6)
-        
-        
+            
+            
 
     # allow user to edit fields of property 
     def EditProperty(self, idx, parent_win=None):
@@ -1396,46 +1773,64 @@ class App(tk.Tk):
                 return "float"
             return "str"
 
-        # Build form
         for i, col in enumerate(editable_cols):
             val = row.get(col, "")
-            typ = _infer_type(val)
+            val = "" if pd.isna(val) else str(val)
+            typ = _infer_type(row.get(col))
 
             lbl = ttk.Label(inner, text=f"{col}:", font=("Arial", 10, "bold"))
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
 
-            #Widget selection
+            # Default var
+            var = tk.StringVar(value=val)
 
+            # CITY
             if col == "City:":
-                var=tk.StringVar(value=str(val))
-                widget=ttk.Combobox(inner, textvariable=var, values=Citys, state="readonly")
+                widget = ttk.Combobox(inner, textvariable=var, values=Citys, state="readonly")
 
+            # MUNICIPALITY
             elif col == "Municipality:":
-                var=tk.StringVar(value=str(val))
-                widget=ttk.Combobox(inner, textvariable=var, values=Municipalitys, state="readonly")
+                widget = ttk.Combobox(inner, textvariable=var, values=Municipalitys, state="readonly")
 
+            # BOOLEAN
             elif typ == "bool" or col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
-                var = tk.StringVar(value=str(val))
                 widget = ttk.Combobox(inner, textvariable=var, values=["True", "False"], state="readonly")
 
+            # FAVORITED
             elif col == "Favorited":
-                var = tk.StringVar(value=str(val))
                 widget = ttk.Combobox(inner, textvariable=var, values=["0", "1"], state="readonly")
 
+            # SUBMITTER NAME
             elif col == "Submitter's Name:":
-                var = tk.StringVar(value=str(val))
                 widget = ttk.Combobox(inner, textvariable=var, values=sub_names, state="readonly")
 
+            # SUBMITTER EMAIL
             elif col.startswith("Submitter's Email"):
-                var = tk.StringVar(value=str(val))
                 widget = ttk.Combobox(inner, textvariable=var, values=sub_emails, state="readonly")
 
+            # START TIME
+            elif col.startswith("Start time"):
+                widget = ttk.Entry(inner, textvariable=var)
+                ttk.Button(inner, text="📅", width=3,
+                           command=lambda v=var: open_calendar(inner.winfo_toplevel(), v)
+                ).grid(row=i, column=4, padx=4)
+
+            # COMPLETION TIME
+            elif col.startswith("Completion time"):
+                widget = ttk.Entry(inner, textvariable=var)
+                ttk.Button(inner, text="📅", width=3,
+                           command=lambda v=var: open_calendar(inner, v)
+                ).grid(row=i, column=4, padx=4)
+
+            # DEFAULT ENTRY
             else:
-                var = tk.StringVar(value="" if pd.isna(val) else str(val))
                 widget = ttk.Entry(inner, textvariable=var, width=50)
 
             widget.grid(row=i, column=1, sticky="we", padx=6, pady=6)
+
+            # Store correct variable
             controls[col] = (typ, var)
+
 
         inner.grid_columnconfigure(1, weight=1)
 
@@ -1446,16 +1841,18 @@ class App(tk.Tk):
         def OnSave():
             updates = {}
 
-            # Convert values
+            # Convert values from UI
             for col, (typ, var) in controls.items():
                 val = var.get()
+
+                # Handle numeric + bool types
                 try:
                     if typ == "int":
                         updates[col] = int(val) if val else None
                     elif typ == "float":
                         updates[col] = float(val) if val else None
                     elif typ == "bool":
-                        updates[col] = val == "True"
+                        updates[col] = (val == "True")
                     else:
                         updates[col] = val
                 except:
@@ -1473,6 +1870,7 @@ class App(tk.Tk):
                     updates.pop("Notes", None)
                 else:
                     ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
+                    username = getpass.getuser()
                     formatted = f"[{username}]{ts}{new_input}"
 
                     if previous_notes and previous_notes in new_input:
@@ -1483,8 +1881,17 @@ class App(tk.Tk):
                     updates["Notes"] = combined
 
             try:
-                # Apply updates
+                # Apply updates safely
                 for c, v in updates.items():
+
+                    # Detect date/time fields
+                    if "time" in c.lower() or "date" in c.lower():
+
+                        # Convert incoming string datetime
+                        #format: "2023-07-15 00:00:00"
+                        v = pd.to_datetime(v, errors="coerce")
+
+                    # Assign to DataFrame
                     self.df.at[idx, c] = v
 
                 # Backup
@@ -1492,7 +1899,7 @@ class App(tk.Tk):
                     bak = f"{os.path.splitext(CSV_PATH)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
                     os.replace(CSV_PATH, bak)
 
-                # Save
+                # Save CSV
                 self.df.to_csv(CSV_PATH, index=False)
 
                 # Update Treeview
@@ -1507,6 +1914,7 @@ class App(tk.Tk):
 
             except Exception as e:
                 messagebox.showerror("Update error", f"Failed: {e}")
+
 
         def OnCancel():
             edit_win.destroy()
