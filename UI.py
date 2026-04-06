@@ -1,6 +1,6 @@
 # Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 2/19/26
+# Last Updated: 4/6/26
 # Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
     #Also displays the image (which is a hyperlink in the csv) using PIL.
 
@@ -59,112 +59,7 @@ sub_emails = ["egrovanz@jeffersoncountypa.gov", "jseary@jeffersoncountypa.gov", 
 
 
 
-###Take an image link - preferably from Google Drive and create a list of URL's for downloading
-##def FindLinkFormat(url: str):
-##    # if url is not a valid string or not a google drive link, return
-##    if not isinstance(url, str) or "drive.google.com" not in url:
-##        return [url]
-##
-##    candidates = []
-##    # keep if the url is already in the uc? format
-##    if "drive.google.com/uc?" in url:
-##        candidates.append(url)
-##
-##    #url may contain the phrase /d/
-##    m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
-##    if m:
-##        fid = m.group(1)
-##        #take the fileid if it ends in any of these examples
-##        candidates += [
-##            f"https://docs.google.com/uc?export=view&id={fid}",
-##            f"https://docs.google.com/uc?export=download&id={fid}",
-##            f"https://docs.google.com/thumbnail?id={fid}"
-##        ]
-##
-##    #the url might end in ?id= or &id=
-##    m2 = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url)
-##    if m2:
-##        #if the url has this build, grab the file id
-##        fid = m2.group(1)
-##        candidates += [
-##            f"https://drive.google.com/uc?export=view&id={fid}",
-##            f"https://drive.google.com/uc?export=download&id={fid}",
-##            f"https://drive.google.com/thumbnail?id={fid}"
-##        ]
-##
-##    candidates.append(url)
-##    #make sure there are no duplicate url's
-##    seen = set()
-##    out = []
-##    for c in candidates:
-##        if c not in seen:
-##            seen.add(c)
-##            out.append(c)
-##    return out
-##
-###Download and open an image from a URL
-##def FindImageFromURL(url: str, timeout=10):
-##    candidates = FindLinkFormat(url)
-##    RecentError = None
-##    #try each url until one returns an image
-##    for candidate in candidates:
-##        try:
-##            resp = requests.get(candidate, stream=True, timeout=timeout)
-##            ctype = (resp.headers.get("Content-Type") or "").lower()
-##            if ctype.startswith("image/"):
-##                data = resp.content
-##                img = Image.open(io.BytesIO(data))
-##                img.load()
-##                return img #return PIL image if successful
-##        except Exception as e:
-##            RecentError = e #raise runtime error if no url's work
-##    raise RuntimeError(f"Unable to fetch image. Last error: {RecentError}")
-##
-##def extract_drive_id(url):
-##        # Pattern 1: /d/<ID>/
-##        m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
-##        if m:
-##            return m.group(1)
-##
-##        # Pattern 2: id=<ID>
-##        m = re.search(r"id=([a-zA-Z0-9_-]+)", url)
-##        if m:
-##            return m.group(1)
-##
-##        return None
-##
-##def load_google_drive_image(file_id):
-##        URL = "https://docs.google.com/uc?export=download"
-##        session = requests.Session()
-##        response = session.get(URL, params={'id': file_id}, stream=True)
-##        
-##        #sometimes requires a confirmation token for large files
-##
-##        for key, value in response.cookies.items():
-##            if key.startswith('download_warning'):
-##                token = value
-##                response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True)
-##                break
-##
-##        try:
-##            img = Image.open(BytesIO(response.content))
-##            img.load()
-##            img = ImageOps.exif_transpose(img)
-##            return img
-##        except Exception as e:
-##            print("Error loading Google Drive image:", e)
-##            return None
-##        
-##def normalize_image_paths(value):
-##    if value is None:
-##        return []
-##    if isinstance(value, float):  # catches NaN
-##        return []
-##    if isinstance(value, list):
-##        return value
-##    if not isinstance(value, str):
-##        value = str(value)
-##
+
 ##    return [p.strip() for p in value.split(",") if p.strip()]
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
@@ -767,25 +662,6 @@ class App(tk.Tk):
             self.tree.heading(col, text=col, command=lambda c=col: SortCol(c))
             self.tree.column(col, width=50, anchor="w",minwidth=50)
 
-##        # Auto fit columns
-##        self.tree.bind("<Configure>", self.FitColumns)
-##
-##                # --- Auto Fit Columns ---
-##        def fit_columns(event=None):
-##            total_width = self.tree.winfo_width()
-##            columns = self.tree["columns"]
-##
-##            if not columns:
-##                return
-##
-##            col_width = max(int(total_width / len(columns)), 120)
-##
-##            for col in columns:
-##                self.tree.column(col, width=col_width, stretch=True)
-##
-##        self.tree.bind("<Configure>", fit_columns)
-
-
         # Selection binding
         self.tree.bind("<<TreeviewSelect>>", self.Selected)
 
@@ -1077,96 +953,11 @@ class App(tk.Tk):
                     print("Error loading image:", e)
 
         show_image(0)
-        #root.mainloop()
-
-##        # Image carousel variables
-##        self.ImageList = []
-##        self.ImageIndex = 0
-##        self.OriginalImage = None
-##
-##        self.ImageFrame = ttk.Frame(win)
-##        self.ImageFrame.grid(row=0, column=0, columnspan=2, sticky="nsew")
-##
-##        self.ImageLabel = ttk.Label(self.ImageFrame)
-##        self.ImageLabel.pack(expand=True)
-##
-##        # Prev/Next buttons
-##        ttk.Button(self.ImageFrame, text="◀", command=self.PrevImage).pack(side="left", padx=5, pady=5)
-##        ttk.Button(self.ImageFrame, text="▶", command=self.NextImage).pack(side="right", padx=5, pady=5)
-##
-##        
-##
-##        def load_image_from_url(url):
-##            try:
-##                response = requests.get(url)
-##                response.raise_for_status()
-##                img = Image.open(BytesIO(response.content))
-##                img.load()
-##                img = ImageOps.exif_transpose(img)
-##                # Detect HTML instead of image
-##                if response.content[:50].lower().startswith(b"<html"):
-##                    print("Google Drive returned HTML instead of an image. File may not be shared publicly.")
-##                    return None
-##
-##                return img
-##            except Exception as e:
-##                print("Error loading image from URL:", e)
-##                return None
-##
-##        img_paths = normalize_image_paths(row.get("ImagePath:", ""))
-##
-##        for p in img_paths:
-##            img = None
-##
-##            # Google Drive link
-##            if "drive.google.com" in p:
-##                file_id = extract_drive_id(p)   
-##                if file_id:
-##                    img = load_google_drive_image(file_id)
-##                else:
-##                    print("Could not extract Google Drive file ID:", p)
-##
-##            # Regular URL
-##            elif p.startswith("http"):
-##                img = load_image_from_url(p)
-##
-##            # Local file
-##            else:
-##                if os.path.exists(p):
-##                    try:
-##                        img = Image.open(p)
-##                        img.load()
-##                        img = ImageOps.exif_transpose(img)
-##                    except Exception as e:
-##                        print("Error loading local image:", e)
-##                        continue
-##                else:
-##                    print(f"Local file not found: {p}")
-##                    continue
-##
-##            if img:
-##                self.ImageList.append(img)
-##
-##
-##
-##
-##        if self.ImageList:
-##            self.ImageIndex = 0
-##            self.OriginalImage = self.ImageList[0]
-##            self.ShowImage()
-##        else:
-##            self.ImageLabel.config(text="No Image Available")
-
         # Buttons for editing and notes
         EditBtn = ttk.Button(win, text="Edit Property Values", command=lambda i=idx: self.EditProperty(i, win))
         NoteBtn = ttk.Button(win, text="Add Note", command=lambda i=idx: self.AddNote(i, win))
         EditBtn.grid(row=3, column=0, sticky="ew", padx=8, pady=(6, 8))
         NoteBtn.grid(row=3, column=1, sticky="ew", padx=8, pady=(6, 8))
-
-##        fav_text = "Unfavorite" if self.df.at[idx, "Favorited"] == 1 else "Favorite"
-##        FavBtn = ttk.Button(win, text=fav_text)
-##        FavBtn.config(command=lambda i=idx, b=FavBtn: self.ToggleFavorite(i, b))
-##        FavBtn.grid(row=3, column=2, sticky="ew", padx=8, pady=(6, 8))
 
         # finds out how big the image should be based on the window size
         def MaxSize():
@@ -1240,11 +1031,7 @@ class App(tk.Tk):
                     .grid(row=i, column=1, sticky="nw", padx=6, pady=4)
 
         ScrollFrame.grid_columnconfigure(1, weight=1)
-
-
-
-
-        #place holder right frame that will hold html page of image 
+ 
        # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
