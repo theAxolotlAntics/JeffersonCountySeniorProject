@@ -1,44 +1,59 @@
 # Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
 # Last Updated: 4/6/26
-# Purpose: Display properties from CSV and show images using Python's Tkinter and Treeview.  User is able to create, edit, and delete properties while it saves to the csv in the folder.
-    #Also displays the image (which is a hyperlink in the csv) using PIL.
+# Purpose: Tkinter-based property management system that:
+        #loads property data from a CSV
+        #Displays it in a Treeview
+        #Allows create/edit/delete of properties
+        #displays images from Google Dive links using PIL
+        #Supports mapping/geocoding and calendar input
 
+
+#GUI Libraries
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+from tkinter import font
+
+#Image Handling
 from PIL import Image, ImageTk, UnidentifiedImageError, ImageOps
+
+#Data Holding
 import pandas as pd
+import csv
+import json
+
+#network/requests
 import requests
 from  io import BytesIO
+
+#system/file handling
 import re
 import os
-from datetime import datetime, timedelta
-
-#to create new csv's
-import csv
-#added imports for image and mapping
 from pathlib import Path
 import webbrowser
 import getpass
+import logging
+
+#date/time
+from datetime import datetime, timedelta
+import time
+
+#calendar UI
+from tkcalendar import Calendar
+
+#custome module
 from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache, validate
 
-#to add calendar UI
-from tkcalendar import Calendar
-from tkinter import font
-import emoji
 
-#added some imports to support exe bundling
-import json
-import logging
-from pathlib import Path
 
+#mapping
 import folium
 import geopandas as gpd  # for creating the map
 from geopy.geocoders import Nominatim  # for parsing the address into geocoded data
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling for geopy
 from shapely.geometry import Point  # for displaying the pinned location on the map
-import time  # to allow the project to wait to avoid running into errors while requesting multiple geo-encodings in a row
-import re
+
+#map rendering/export automation
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -57,16 +72,16 @@ sub_names= ["Elise Grovanz", "Jess Seary", "Other"]
 #submitter emails
 sub_emails = ["egrovanz@jeffersoncountypa.gov", "jseary@jeffersoncountypa.gov", "Other"]
 
-
-
-
-##    return [p.strip() for p in value.split(",") if p.strip()]
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
+
+#google drive image downloader
 def download_drive_image(file_id):
-    """Download image from Google Drive, handling confirmation tokens."""
+    #Download image from Google Drive, handling confirmation tokens.
     URL = "https://drive.google.com/uc?export=download"
     session = requests.Session()
+
+    #initial request
     response = session.get(URL, params={'id': file_id}, stream=True, headers=headers)
     
     # Check for confirmation token
@@ -75,14 +90,16 @@ def download_drive_image(file_id):
             token = value
             response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True, headers=headers)
             break
-
+    #convert response to PIL Image
     file_bytes = BytesIO(response.content)
     img = Image.open(file_bytes)
+    
+    #Fix image orientaition based on EXIF data
     img = ImageOps.exif_transpose(img)
     return img
 
 
-
+#hover help text for widgets
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -92,6 +109,7 @@ class ToolTip:
         widget.bind("<Leave>", self.hide)
 
     def show(self, event=None):
+        #display tooltip near widget
         if self.tip:
             return
         x = self.widget.winfo_rootx() + 20
@@ -104,11 +122,14 @@ class ToolTip:
         label.pack()
 
     def hide(self, event=None):
+        #hide tooltip
         if self.tip:
             self.tip.destroy()
             self.tip = None
-            
+
+#calendar pop up function
 def open_calendar(parent,var):
+    #opens a calendar widget in a popup window and writes a selected ate into Tkinter StringVar
     top = tk.Toplevel(parent)
 
     # Create the calendar widget
@@ -119,16 +140,11 @@ def open_calendar(parent,var):
     def select_date():
         selected_date = cal.get_date()
         var.set(selected_date)
-        #print(selected_date)
         top.destroy()
 
             
 
     ttk.Button(top, text="Select", command=select_date).pack(pady=5)
-
-# ---- Data ----
-
-
 
 #--------------------------------------------------------------------------------------------------------------------------
 
@@ -176,7 +192,10 @@ date_cols = ["Start time", "Completion time", "Date of Property Review"]
 for col in date_cols:
     if col in Originaldf.columns:
         Originaldf[col] = pd.to_datetime(Originaldf[col], errors="coerce")
-            
+#----------------------------------------------------------------------------------------------------------------------------
+#APPLICATION
+#-----------------------------------------------------------------------------------------------------------------
+
 Title = "Blight Inventory"
 
 # columns wanted on the main page
@@ -199,48 +218,61 @@ Municipalitys = ["Barnett", "Beaver", "Bell", "Clover", "Eldred", "Gaskill", "He
 
 Uses = ["Commercial","Residential"]
 
-
+#normalize data by converting values to string and stripping whitespace.  also lowercases all values
 def normalize(series):
     return series.astype(str).str.strip().str.lower()
 
 
 
 # ---- App ----
+
+#- Load and display CSV data in a Treeview
+    #- Manage property records (add/edit/delete)
+   # - Handle filtering and search
+  #  - Provide UI menus, toolbar, and settings
+ #   - Support theme switching (dark/light mode)
+#    - Toggle between Blight and Inventory modes
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
+        #configure window
         self.title(Title)
         self.geometry("1100x600")
         self.minsize(900, 520) #min size of the main window
-        
+
+        #dataset
         self.df = Originaldf.copy()
         
 
-        self.mode = tk.StringVar(value="Blight")  # NEW: "Blight" or "Inventory"
+        self.mode = tk.StringVar(value="Blight")  # mode toggle "Blight" or "Inventory"
         
-        self.all_columns = list(self.df.columns)
+        self.all_columns = list(self.df.columns) #all available columns in dataset
         self.visible_columns= [col for col in VisibleColumns if col in self.all_columns]
 
-        if not self.visible_columns:
+        if not self.visible_columns: #fallback if no visible columns match
             self.visible_columns=self.all_columns.copy()
 
+        #menubar
         self.menubar = tk.Menu(self)
         self.config(menu=self.menubar)
-        self.dark_mode = tk.BooleanVar(value=False)
+        self.dark_mode = tk.BooleanVar(value=False) #current theme
 
+        #UI components
         self.CreateToolMenu()
         self.CreateSettingsMenu()
         self.CreateToolbar()
         self.BuildFilters()
 
         self.BuildTree()
+
+        #populate treeview
         self.ShowTree(self.df)
 
-    def ToggleMode(self):  # NEW
+    def ToggleMode(self):  # switches current mode and notifies of new state
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
         messagebox.showinfo("Mode Changed", f"Current mode: {self.mode.get()}")
 
-    #  Menu 
+    #  creates a faile menu with new, save, and exit app
     def CreateToolMenu(self): #creates a tool bar with navigation buttons
         menubar = tk.Menu(self)
         filemenu = tk.Menu(menubar, tearoff=0)
@@ -258,7 +290,11 @@ class App(tk.Tk):
         settingsmenu.add_command(label="Font Size")
         self.menubar.add_cascade(label="Settings", menu=settingsmenu)
         settingsmenu.add_command(label = "Show/Hide Columns", command=self.ShowColumnSelector)
+
+    #theme handling
     def ShowThemesMenu(self):
+
+        #allows user to toggle dark mode
         top = tk.Toplevel(self)
         top.title("Themes")
         top.geometry("250x150")
@@ -276,6 +312,7 @@ class App(tk.Tk):
         dark_check.pack(pady=5)
 
     def ApplyTheme(self):
+        #applies dark or light UI and refreshes elements
                 style = ttk.Style()
 
                 if self.dark_mode.get():
@@ -763,6 +800,7 @@ class App(tk.Tk):
         
 
     def ResetFilters(self):
+        #reset filters to default state
         self.BlightedFilter.set(False)
         self.VacancyFilter.set(False)
 
@@ -783,6 +821,8 @@ class App(tk.Tk):
         self.ShowTree(self.df)
 
     def ShowImage(self):
+        #displays current image from ImageList in the UI
+        #maintains aspect ratio
         if not self.ImageList:
             return
         self.OriginalImage = self.ImageList[self.ImageIndex]
@@ -795,12 +835,14 @@ class App(tk.Tk):
         self.ImageLabel.config(image=self.tkimage)
         self.ImageLabel.image = self.tkimage  # keep reference
 
+    #navigate to next image in carousel
     def NextImage(self):
         if not self.ImageList:
             return
         self.ImageIndex = (self.ImageIndex + 1) % len(self.ImageList)
         self.ShowImage()
 
+    #navigate to previous image in carousel
     def PrevImage(self):
         if not self.ImageList:
             return
@@ -822,6 +864,7 @@ class App(tk.Tk):
             idx = tag
         row = self.df.loc[idx]
 
+        #window header of property address
         win = tk.Toplevel(self)
         win.title(f"Property Address: {row.get('Property Address Number:', '')} {row.get('Property Address Street Name:', '')}")
         win.geometry("800x600")
@@ -908,6 +951,10 @@ class App(tk.Tk):
         win.after(150, ResizeImage)
 
         def show_image(idx):
+            #disp;ays image at a given index from OriginalImages
+
+            #wraps index using mod for safe navigation
+            #triggers ResizeImage after updating Index
             nonlocal image_index
             if not OriginalImages:
                 ImageLabel.config(text="No Images Available")
@@ -916,21 +963,27 @@ class App(tk.Tk):
             win.after(1,ResizeImage)
 
         def next_image():
+            #advances to next image in list
             show_image(image_index + 1)
 
         def prev_image():
+            #advances to previous image in list
             show_image(image_index - 1)
 
+        #previous and next image buttons
         btnPrev = tk.Button(ImageFrame, text="◀", command=prev_image)
         btnPrev.grid(row=0,column=0, sticky="w", padx=5, pady=5)
         btnNext = tk.Button(ImageFrame, text="▶", command=next_image)
         btnNext.grid(row=0,column=2, sticky="e", padx=5, pady=5)
 
+        #stores loaded PIL images
         OriginalImages = []
 
+        #raw image paths from dataframe row
         image_paths = row.get("ImagePath:", "")
 
         if image_paths:
+            #split multiple paths, seperate by comma
             paths = [p.strip() for p in str(image_paths).split(",")]
 
             for p in paths:
@@ -957,7 +1010,7 @@ class App(tk.Tk):
 
                 except Exception as e:
                     print("Error loading image:", e)
-
+        #show first image
         show_image(0)
         # Buttons for editing and notes
         EditBtn = ttk.Button(win, text="Edit Property Values", command=lambda i=idx: self.EditProperty(i, win))
@@ -978,8 +1031,6 @@ class App(tk.Tk):
         # InfoFrame and RightFrame 
         InfoFrame=ttk.Frame(win,relief="solid",padding=5)
         InfoFrame.grid(row=1,column=0,sticky="nsew", padx=5,pady=5)
-        #InfoFrame.grid_propagate(False)
-        #InfoFrame.configure(height=200)
 
         InfoFrame.grid_rowconfigure(0,weight=1)
         InfoFrame.grid_columnconfigure(0,weight=1)
@@ -994,10 +1045,10 @@ class App(tk.Tk):
         )
 
         canvas.grid(row=0, column=0, sticky="nsew")
-        vscroll.grid(row=0, column=1, sticky="ns")
+        vscroll.grid(row=0, column=1, sticky="ns") #add scrollbars to infoframe
         hscroll.grid(row=1, column=0, sticky="ew")
 
-        ScrollFrame = ttk.Frame(canvas)
+        ScrollFrame = ttk.Frame(canvas) 
         canvas.create_window((0,0), window=ScrollFrame, anchor="nw")
 
         def ConfigureFrame(event):
@@ -1009,7 +1060,7 @@ class App(tk.Tk):
         hidden_columns=[col for col in self.all_columns if col not in self.visible_columns]
 
 
-        if self.mode.get() == "Inventory":
+        if self.mode.get() == "Inventory": #display information necessary for inventory mode
             summary_fields = [
                 ("Parcel ID", "Parcel ID, if known:"),
                 ("Address #", "Property Address Number:"),
@@ -1027,7 +1078,8 @@ class App(tk.Tk):
 
                     ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w")\
                         .grid(row=r, column=1, sticky="nw", padx=6, pady=4)
-        else:
+        
+        else: #display information in hidden columns - more information
             for i, col in enumerate(hidden_columns):
                 val = row.get(col, "")
                 ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))\
@@ -1041,8 +1093,6 @@ class App(tk.Tk):
        # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
-        #NoteFrame.grid_propagate(False)
-        #NoteFrame.configure(height=200)
 
         NoteFrame.rowconfigure(1, weight=1)
         NoteFrame.columnconfigure(0, weight=1)
@@ -1085,7 +1135,7 @@ class App(tk.Tk):
         note_canvas.bind("<Configure>", note_configure_canvas)
 
 
-        # Example: display notes text inside scrollable area
+        #  display notes text inside scrollable area
         notes_text = row.get("Notes", "")
 
         ttk.Label(
@@ -1104,7 +1154,6 @@ class App(tk.Tk):
                 return "str"
             if isinstance(val, bool):
                 return "bool"
-            # note: bool is subclass of int, so check bool above
             if isinstance(val, int) and not isinstance(val, bool):
                 return "int"
             if isinstance(val, float):
@@ -1195,6 +1244,7 @@ class App(tk.Tk):
         self.ShowTree(data)
 
     def ShowColumnSelector(self):
+        #user is able to modify shown columns.
 
             top = tk.Toplevel(self)
             top.title("Show / Hide Columns")
@@ -1328,6 +1378,7 @@ class App(tk.Tk):
             messagebox.showerror("Delete error", f"Failed to delete row(s): {e}")
     
     def AddProperty(self):
+        #user is able to add new property, with some required fields
         new_values = list(self.df.columns)
 
         new_win = tk.Toplevel(self)
@@ -1343,6 +1394,7 @@ class App(tk.Tk):
         addFrame.columnconfigure(0, weight=1)
 
         newCanvas = tk.Canvas(addFrame)
+        #add srollbars
         newVscroll = ttk.Scrollbar(addFrame, orient="vertical", command=newCanvas.yview)
         newHscroll = ttk.Scrollbar(addFrame, orient="horizontal", command=newCanvas.xview)
 
@@ -1360,8 +1412,6 @@ class App(tk.Tk):
         # Store controls as (typ, var)
         controls = {}
 
-        import re
-
         # Build form
         for i, col in enumerate(new_values):
 
@@ -1372,6 +1422,7 @@ class App(tk.Tk):
             typ = "str"  # default type
             validation = None
 
+            #import values with dropdowns
             # ID
             if col == "ID":
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
@@ -1454,6 +1505,7 @@ class App(tk.Tk):
         btnfrm.pack(fill="x", side="bottom")
 
         def OnSave():
+            #user can save property to df, must have some fields required, then makes a new row
             new_row = {}
 
             for col, (typ, var) in controls.items():
@@ -1469,6 +1521,20 @@ class App(tk.Tk):
                     new_row[col] = pd.to_datetime(val, errors="coerce")
                 else:
                     new_row[col] = val
+                    
+            # Required fields
+            required_fields = ["City:","Municipality:","Property Address Number:","Property Address Street Name:"]
+
+            missing = []
+
+            for field in required_fields:
+                val = controls[field][1].get().strip()
+                if not val:
+                    missing.append(field)
+
+            if missing:
+                messagebox.showerror("Missing Required Fields","Please fill in the following required fields:\n\n" + "\n".join(missing))
+                return
 
             # Append new row
             self.df.loc[len(self.df)] = new_row
@@ -1566,7 +1632,7 @@ class App(tk.Tk):
                 return "float"
             return "str"
 
-        for i, col in enumerate(editable_cols):
+        for i, col in enumerate(editable_cols): #some columns are not editable
             val = row.get(col, "")
             val = "" if pd.isna(val) else str(val)
             typ = _infer_type(row.get(col))
@@ -1631,6 +1697,8 @@ class App(tk.Tk):
         btnfrm = ttk.Frame(edit_win, padding=6)
         btnfrm.pack(fill="x", side="bottom")
 
+        
+
         def OnSave():
             updates = {}
 
@@ -1651,6 +1719,25 @@ class App(tk.Tk):
                 except:
                     updates[col] = val
 
+            # Required fields - can not be left empty
+            required_fields = [ "City:", "Municipality:","Property Address Number:","Property Address Street Name:"]
+
+            missing = []
+
+            for field in required_fields:
+                val = controls[field][1].get().strip()
+                if not val:
+                    missing.append(field)
+
+            if missing:
+                messagebox.showerror(
+                    "Missing Required Fields",
+                    "Please fill in the following required fields:\n\n" + "\n".join(missing)
+                )
+                return
+
+            new_row = {}
+
             # Notes handling
             if "Notes" in updates:
                 raw = updates["Notes"]
@@ -1661,7 +1748,7 @@ class App(tk.Tk):
 
                 if new_input == "":
                     updates.pop("Notes", None)
-                else:
+                else: #strips username of user and timestamp
                     ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
                     username = getpass.getuser()
                     formatted = f"[{username}]{ts}{new_input}"
@@ -1681,7 +1768,6 @@ class App(tk.Tk):
                     if "time" in c.lower() or "date" in c.lower():
 
                         # Convert incoming string datetime
-                        #format: "2023-07-15 00:00:00"
                         v = pd.to_datetime(v, errors="coerce")
 
                     # Assign to DataFrame
