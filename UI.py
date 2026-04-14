@@ -460,47 +460,57 @@ class App(tk.Tk):
         ttk.Checkbutton(frm, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
 
 
-    #This fuction will create a map with all the adresses in the dataframe
+    # This fuction will create a map with all the adresses in the dataframe
     def CreateFullMap(self):
         MAP_HTML = CACHE_DIR / "full_Map.html"
-        
+        # get the cache 
+        cache = _load_geocode_cache()
+        # restrict cache to only properties in the dataframe
+        cache = {k: v for k, v in cache.items() if k in self.df["Property Address Street Name:"].astype(str).tolist()}
 
         for index, row in self.df.iterrows():
-            address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-            map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-            # create list of status flags for possible status and combination support
+            # primary address + map_id
+            address_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+            map_id_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+
+            # fallback addresses
+            address_street = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+            map_id_street = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+
+            address_city = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
+            map_id_city = f"Property in {row.get('City:','')}"
+
+            # status flags
             status_flags = []
-
-            if validate(row.get("Vacant Property:", "")):
-                    status_flags.append("Vacant")
-
-            if validate(row.get("Property Blighted?", "")):
-                    status_flags.append("Blighted")
-
-            if validate(row.get("Residential", "")):
-                    status_flags.append("Residential")
-
-            if validate(row.get("Commercial", "")):
-                    status_flags.append("Commercial")
-            
-            # combine flags into a string
+            if validate(row.get("Vacant Property:", "")): status_flags.append("Vacant")
+            if validate(row.get("Property Blighted?", "")): status_flags.append("Blighted")
+            if validate(row.get("Residential", "")): status_flags.append("Residential")
+            if validate(row.get("Commercial", "")): status_flags.append("Commercial")
             status = " ".join(status_flags) if status_flags else None
 
-            coords = geocode_address(address, label=map_id, status=status, cache=cache)
-            if coords:
-                cache[map_id] = coords  
+            # Check cache before geocoding 
+            # Try full address
+            if map_id_full in cache:
+                coords = cache[map_id_full]
             else:
-                address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
-                coords = geocode_address(address, label=map_id, status=status, cache=cache)
-                if coords:
-                    cache[map_id] = coords  
+                # street-level fallback
+                if map_id_street in cache:
+                    coords = cache[map_id_street]
                 else:
-                    address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-                    map_id = f"Property in {row.get('City:','')}"
-                    coords = geocode_address(address, label=map_id, status=status, cache=cache)
-                    if coords:
-                        cache[map_id] = coords  
+                    # city-level fallback
+                    if map_id_city in cache:
+                        coords = cache[map_id_city]
+                    else:
+                        # geocode_address only if not in the json
+                        coords = (
+                            geocode_address(address_full, label=map_id_full, status=status, cache=cache)
+                            or geocode_address(address_street, label=map_id_street, status=status, cache=cache)
+                            or geocode_address(address_city, label=map_id_city, status=status, cache=cache)
+                        )
+
+                        # Save whichever one succeeded
+                        if coords:
+                            cache[list(coords.keys())[0]] = coords[list(coords.keys())[0]]
 
         # Save merged cache 
         _save_geocode_cache(cache)
