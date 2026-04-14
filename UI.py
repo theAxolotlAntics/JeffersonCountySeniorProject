@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 #to create new csv's
 import csv
-#added imporrts for image and mapping
+#added imports for image and mapping
 from pathlib import Path
 import webbrowser
 import getpass
@@ -463,12 +463,12 @@ class App(tk.Tk):
     # This fuction will create a map with all the adresses in the dataframe
     def CreateFullMap(self):
         MAP_HTML = CACHE_DIR / "full_Map.html"
-        # get the cache 
+
+        # Load cache
         cache = _load_geocode_cache()
-        # restrict cache to only properties in the dataframe
-        cache = {k: v for k, v in cache.items() if k in self.df["Property Address Street Name:"].astype(str).tolist()}
 
         for index, row in self.df.iterrows():
+
             # primary address + map_id
             address_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
@@ -488,35 +488,31 @@ class App(tk.Tk):
             if validate(row.get("Commercial", "")): status_flags.append("Commercial")
             status = " ".join(status_flags) if status_flags else None
 
-            # Check cache before geocoding 
-            # Try full address
+            # --- CACHE CHECKS ---
             if map_id_full in cache:
                 coords = cache[map_id_full]
+            elif map_id_street in cache:
+                coords = cache[map_id_street]
+            elif map_id_city in cache:
+                coords = cache[map_id_city]
             else:
-                # street-level fallback
-                if map_id_street in cache:
-                    coords = cache[map_id_street]
-                else:
-                    # city-level fallback
-                    if map_id_city in cache:
-                        coords = cache[map_id_city]
-                    else:
-                        # geocode_address only if not in the json
-                        coords = (
-                            geocode_address(address_full, label=map_id_full, status=status, cache=cache)
-                            or geocode_address(address_street, label=map_id_street, status=status, cache=cache)
-                            or geocode_address(address_city, label=map_id_city, status=status, cache=cache)
-                        )
+                # --- GEOCODE ONLY IF NOT IN CACHE ---
+                coords = (
+                    geocode_address(address_full, label=map_id_full, status=status, cache=cache)
+                    or geocode_address(address_street, label=map_id_street, status=status, cache=cache)
+                    or geocode_address(address_city, label=map_id_city, status=status, cache=cache)
+                )
 
-                        # Save whichever one succeeded
-                        if coords:
-                            cache[list(coords.keys())[0]] = coords[list(coords.keys())[0]]
+                # Save whichever succeeded
+                if coords:
+                    cache[coords["label"]] = coords
 
-        # Save merged cache 
+        # Save updated cache
         _save_geocode_cache(cache)
 
-        # Generate map with all pins
-        png_path = generate_full_map(cache)
+        # Generate map
+        out_path = generate_full_map(cache)
+        png_path = out_path.with_suffix(".png")
 
         # Show in Tkinter window
         new_win = tk.Toplevel(self)
@@ -527,12 +523,12 @@ class App(tk.Tk):
         label = tk.Label(new_win, image=photo)
         label.image = photo
         label.pack(padx=20, pady=20)
-                # Button to open full interactive map in browser
+
         def open_in_browser(event=None):
             webbrowser.open(MAP_HTML.as_uri())
 
-        # Bind left mouse click on the label to open_in_browser
         label.bind("<Button-1>", open_in_browser)
+
 
     #create a new csv with the 
     def NewCSV(self):
