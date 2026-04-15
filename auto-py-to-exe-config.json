@@ -92,6 +92,10 @@
   {
    "optionDest": "hiddenimports",
    "value": "pygorio"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/satur/AppData/Local/Programs/Python/Python313/Lib/tkinter;tkinter/"
   }
  ],
  "nonPyinstallerOptions": {
