@@ -72,6 +72,33 @@ sub_names= ["Elise Grovanz", "Jess Seary", "Other"]
 #submitter emails
 sub_emails = ["egrovanz@jeffersoncountypa.gov", "jseary@jeffersoncountypa.gov", "Other"]
 
+JEFFERSON_ZIPS = {
+    "15767",	#Punxsutawney	
+    "15825",	#Brookville	
+    "15851",	#Reynoldsville	
+    "15824",	#Brockway	
+    "15840",	#Falls Creek	
+    "15864",	#Summerville	
+    "16240",	#Mayport	
+    "15829",	#Corsica	
+    "15860",	#Sigel	
+    "15865",	#Sykesville	
+    "15715",	#Big Run	
+    "15778",	#Timblin	
+    "15711",	#Anita	
+    "15770",	#Ringgold	
+    "15764",	#Oliveburg	
+    "15863",	#Stump Creek	
+    "15730",	#Coolspring	
+    "15780",	#Valier	
+    "15781",	#Walston	
+    "15733",	#De Lancey	
+    "15847",	#Knox Dale  
+    "15784",	#Worthville	
+    "15744",	#Hamilton	
+    "15776",	#Sprankle Mills	
+}
+
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
 
@@ -1094,57 +1121,39 @@ class App(tk.Tk):
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
         NoteFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
-        NoteFrame.rowconfigure(1, weight=1)
+        NoteFrame.rowconfigure(0, weight=1)
         NoteFrame.columnconfigure(0, weight=1)
 
-        # Header label
-        tk.Label(
-            NoteFrame,
-            text=f"Notes: {row.get('Notes','')}",
-            font=("Arial", 12, "bold")
-        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=4)
+        canvas = tk.Canvas(NoteFrame) #add scrollbars
+        vscroll = ttk.Scrollbar(NoteFrame, orient="vertical", command=canvas.yview)
+        hscroll = ttk.Scrollbar(NoteFrame, orient="horizontal", command=canvas.xview)
 
-        # Canvas + scrollbars
-        note_canvas = tk.Canvas(NoteFrame)
-        note_vscroll = ttk.Scrollbar(NoteFrame, orient="vertical", command=note_canvas.yview)
-        note_hscroll = ttk.Scrollbar(NoteFrame, orient="horizontal", command=note_canvas.xview)
-
-        note_canvas.configure(
-            yscrollcommand=note_vscroll.set,
-            xscrollcommand=note_hscroll.set
+            #set scrollbars
+        canvas.configure(
+            yscrollcommand=vscroll.set,
+            xscrollcommand=hscroll.set
         )
 
-        note_canvas.grid(row=1, column=0, sticky="nsew")
-        note_vscroll.grid(row=1, column=1, sticky="ns")
-        note_hscroll.grid(row=2, column=0, sticky="ew")
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vscroll.grid(row=0, column=1, sticky="ns")
+        hscroll.grid(row=1, column=0, sticky="ew")
 
-        # Scrollable frame
-        NoteScrollFrame = ttk.Frame(note_canvas)
-        note_window = note_canvas.create_window((0, 0), window=NoteScrollFrame, anchor="nw")
+        ScrollFrame = ttk.Frame(canvas)
+        canvas.create_window((0,0), window=ScrollFrame, anchor="nw")
 
-        # Update scroll region when content changes
-        def note_configure_frame(event):
-            note_canvas.configure(scrollregion=note_canvas.bbox("all"))
+        def ConfigureFrame(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
 
-        NoteScrollFrame.bind("<Configure>", note_configure_frame)
+        ScrollFrame.bind("<Configure>", ConfigureFrame)
 
-        # Resize inner frame with canvas
-        def note_configure_canvas(event):
-            note_canvas.itemconfig(note_window, width=event.width)
+        # Add text
+        tk.Label(
+            ScrollFrame,
+            text=f"Notes: {row.get('Notes','')}",
+            font=("Arial", 12)
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=4)
 
-        note_canvas.bind("<Configure>", note_configure_canvas)
-
-
-        #  display notes text inside scrollable area
-        notes_text = row.get("Notes", "")
-
-        ttk.Label(
-            NoteScrollFrame,
-            text=notes_text,
-            wraplength=350,
-            anchor="nw",
-            justify="left"
-        ).grid(row=0, column=0, sticky="nw", padx=5, pady=5)
+        ScrollFrame.grid_columnconfigure(1, weight=1)
 
 
 
@@ -1290,7 +1299,7 @@ class App(tk.Tk):
                     var.set(False)   
 
             def apply_changes():
-                self.visible_columns = [
+                VisibleColumns = [
                     col for col, var in checkbox_vars.items() if var.get()
                 ]
                 self.BuildTree()
@@ -1301,7 +1310,7 @@ class App(tk.Tk):
 
             ttk.Button(btn_frame, text="Select All", command=select_all).pack(side="left", padx=5)
             ttk.Button(btn_frame, text="Deselect All", command=deselect_all).pack(side="left", padx=5)
-            ttk.Button(btn_frame, text="Select Normal", command=select_normal).pack(side="left", padx=5)
+            ttk.Button(btn_frame, text="Default", command=select_normal).pack(side="left", padx=5)
             ttk.Button(btn_frame, text="Apply", command=apply_changes).pack(side="left", padx=5)  
 
 
@@ -1536,6 +1545,21 @@ class App(tk.Tk):
                 messagebox.showerror("Missing Required Fields","Please fill in the following required fields:\n\n" + "\n".join(missing))
                 return
 
+            zip_field = "Zipcode:"
+            zip_value = controls[zip_field][1].get().strip()
+
+            if not zip_value:
+                messagebox.showerror("Missing ZIP Code", "ZIP Code is required.")
+                return
+
+            if zip_value not in JEFFERSON_ZIPS:
+                messagebox.showerror(
+                    "Invalid ZIP Code",
+                    "ZIP Code must be in Jefferson County, PA.\n\n"
+                    f"Invalid value: {zip_value}"
+                )
+                return    
+
             # Append new row
             self.df.loc[len(self.df)] = new_row
 
@@ -1733,6 +1757,21 @@ class App(tk.Tk):
                 messagebox.showerror(
                     "Missing Required Fields",
                     "Please fill in the following required fields:\n\n" + "\n".join(missing)
+                )
+                return
+
+            zip_field = "Zipcode:"
+            zip_value = controls[zip_field][1].get().strip()
+
+            if not zip_value:
+                messagebox.showerror("Missing ZIP Code", "ZIP Code is required.")
+                return
+
+            if zip_value not in JEFFERSON_ZIPS:
+                messagebox.showerror(
+                    "Invalid ZIP Code",
+                    "ZIP Code must be in Jefferson County, PA.\n\n"
+                    f"Invalid value: {zip_value}"
                 )
                 return
 
