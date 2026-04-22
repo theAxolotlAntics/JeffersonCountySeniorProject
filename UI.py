@@ -250,6 +250,12 @@ def normalize(series):
     return series.astype(str).str.strip().str.lower()
 
 
+def get_backup_path(csv_path):
+    """Return one consistent backup filename for the current date."""
+    base, ext = os.path.splitext(csv_path)
+    date_str = datetime.now().strftime("%Y%m%d")
+    return f"{base}_backup_{date_str}{ext}"
+
 
 # ---- App ----
 
@@ -283,6 +289,13 @@ class App(tk.Tk):
         self.menubar = tk.Menu(self)
         self.config(menu=self.menubar)
         self.dark_mode = tk.BooleanVar(value=False) #current theme
+        self.font_size = tk.IntVar(value=10)
+        self.base_font_size = 10
+        self.base_window_width = 1100
+        self.base_window_height = 600
+        self.base_min_width = 900
+        self.base_min_height = 520
+        self.style = ttk.Style()
 
         #UI components
         self.CreateToolMenu()
@@ -291,13 +304,16 @@ class App(tk.Tk):
         self.BuildFilters()
 
         self.BuildTree()
+        self.ApplyTheme()
 
         #populate treeview
         self.ShowTree(self.df)
+        self.protocol("WM_DELETE_WINDOW", self.OnClose)
 
-    def ToggleMode(self):  # switches current mode and notifies of new state
+    def ToggleMode(self):
         self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
-        messagebox.showinfo("Mode Changed", f"Current mode: {self.mode.get()}")
+        self.RebuildLayout()
+        self.ApplyFilters()
 
     #  creates a faile menu with new, save, and exit app
     def CreateToolMenu(self): #creates a tool bar with navigation buttons
@@ -306,29 +322,104 @@ class App(tk.Tk):
         filemenu.add_command(label="New File", command=self.NewCSV)
         filemenu.add_command(label="Save As", command=self.SaveAsCSV)
         filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=self.destroy) #exit option closes program
+        filemenu.add_command(label="Exit", command=self.OnClose) #exit option closes program
         self.menubar.add_cascade(label="File", menu=filemenu)
 
     def CreateSettingsMenu(self): #create a settings menubar.  This can change font size, themes, and toggle the mode (blight or inventory)
-        settingsbar = tk.Menu(self)
-        settingsmenu = tk.Menu(settingsbar, tearoff=0)
-        settingsmenu.add_command(label="Change Mode", command=self.ToggleMode)  # NEW
+        settingsmenu = tk.Menu(self.menubar, tearoff=0)
+        settingsmenu.add_command(label="Change Mode", command=self.ToggleMode)
         settingsmenu.add_command(label="Themes", command=self.ShowThemesMenu)
-        settingsmenu.add_command(label="Font Size")
+        settingsmenu.add_command(label="Font Size", command=self.ShowFontSizeMenu)
+        settingsmenu.add_command(label="Show/Hide Columns", command=self.ShowColumnSelector)
         self.menubar.add_cascade(label="Settings", menu=settingsmenu)
-        settingsmenu.add_command(label = "Show/Hide Columns", command=self.ShowColumnSelector)
+
+    def ScaleValue(self, value, minimum=1):
+        scale = self.font_size.get() / self.base_font_size
+        return max(minimum, int(round(value * scale)))
+
+    def CurrentFonts(self):
+        size = self.font_size.get()
+        return {
+            "normal": ("Arial", size),
+            "bold": ("Arial", size, "bold"),
+            "small": ("Arial", max(8, size - 1)),
+            "title": ("Arial", size + 2, "bold"),
+        }
+
+    def ApplyFontSize(self, *_):
+        self.ApplyTheme()
+        self.UpdateWindowSizing()
+        self.RebuildLayout()
+        self.ApplyFilters()
+
+    def UpdateWindowSizing(self):
+        scale = self.font_size.get() / self.base_font_size
+        min_w = int(self.base_min_width * scale)
+        min_h = int(self.base_min_height * scale)
+        self.minsize(min_w, min_h)
+
+    def RebuildLayout(self):
+        if hasattr(self, "toolbar_frame") and self.toolbar_frame.winfo_exists():
+            self.toolbar_frame.destroy()
+        if hasattr(self, "filter_frame") and self.filter_frame.winfo_exists():
+            self.filter_frame.destroy()
+        if hasattr(self, "tree_container") and self.tree_container.winfo_exists():
+            self.tree_container.destroy()
+
+        self.CreateToolbar()
+        self.BuildFilters()
+        self.BuildTree()
+        self.ShowTree(self.df)
+
+    def ShowFontSizeMenu(self):
+        top = tk.Toplevel(self)
+        top.title("Font Size")
+        top.geometry("340x180")
+        top.minsize(300, 160)
+        top.grab_set()
+        top.configure(bg="#2b2b2b" if self.dark_mode.get() else "#f0f0f0")
+
+        fonts = self.CurrentFonts()
+
+        ttk.Label(top, text="Adjust Text Size", font=fonts["title"]).pack(pady=(12, 8))
+
+        value_label = ttk.Label(top, text=f"{self.font_size.get()} pt", font=fonts["normal"])
+        value_label.pack(pady=(0, 8))
+
+        def on_slide(val):
+            value_label.config(text=f"{int(float(val))} pt")
+
+        slider = tk.Scale(
+            top,
+            from_=8,
+            to=18,
+            orient="horizontal",
+            variable=self.font_size,
+            command=on_slide,
+            length=220
+        )
+        slider.pack(pady=4)
+
+        btns = ttk.Frame(top)
+        btns.pack(pady=10)
+
+        ttk.Button(btns, text="Apply", command=lambda: [self.ApplyFontSize(), top.destroy()]).pack(side="left", padx=5)
+        ttk.Button(btns, text="Reset", command=lambda: [self.font_size.set(self.base_font_size), on_slide(self.base_font_size)]).pack(side="left", padx=5)
+        ttk.Button(btns, text="Close", command=top.destroy).pack(side="left", padx=5)
 
     #theme handling
     def ShowThemesMenu(self):
 
-        #allows user to toggle dark mode
         top = tk.Toplevel(self)
         top.title("Themes")
-        top.geometry("250x150")
+        top.geometry("280x180")
+        top.minsize(260, 160)
         top.grab_set()
         top.configure(bg="#2b2b2b" if self.dark_mode.get() else "#f0f0f0")
 
-        ttk.Label(top, text="Appearance", font=("Arial", 11, "bold")).pack(pady=10)
+        fonts = self.CurrentFonts()
+
+        ttk.Label(top, text="Appearance", font=fonts["title"]).pack(pady=10)
 
         dark_check = ttk.Checkbutton(
             top,
@@ -338,190 +429,183 @@ class App(tk.Tk):
         )
         dark_check.pack(pady=5)
 
+        ttk.Button(top, text="Font Size...", command=self.ShowFontSizeMenu).pack(pady=8)
+
     def ApplyTheme(self):
-        #applies dark or light UI and refreshes elements
-                style = ttk.Style()
+        style = self.style
+        fonts = self.CurrentFonts()
+        row_h = self.ScaleValue(25, minimum=22)
+        pad_small = self.ScaleValue(4, minimum=2)
+        pad_med = self.ScaleValue(8, minimum=4)
 
-                if self.dark_mode.get():
-                    # Use base theme
-                    style.theme_use("clam")
+        default_bg = "#f0f0f0"
+        default_fg = "#000000"
 
-                    bg = "#2b2b2b"
-                    fg = "#ffffff"
-                    field_bg = "#3c3f41"
-                    accent = "#4a90e2"
+        if self.dark_mode.get():
+            style.theme_use("clam")
 
-                    self.configure(bg=bg)
+            bg = "#2b2b2b"
+            fg = "#ffffff"
+            field_bg = "#3c3f41"
+            accent = "#4a90e2"
 
-                    # General styles
-                    style.configure(".", background=bg, foreground=fg)
+            self.configure(bg=bg)
 
-                    style.configure("TFrame", background=bg)
-                    style.configure("TLabel", background=bg, foreground=fg)
+            style.configure(".", background=bg, foreground=fg, font=fonts["normal"])
+            style.configure("TFrame", background=bg)
+            style.configure("TLabel", background=bg, foreground=fg, font=fonts["normal"])
+            style.configure("TLabelframe", background=bg, foreground=fg)
+            style.configure("TLabelframe.Label", background=bg, foreground=fg, font=fonts["bold"])
 
-                    style.configure("TButton",
-                                    background=field_bg,
-                                    foreground=fg,
-                                    borderwidth=1)
-                    style.map("TButton",
-                              background=[("active", accent)])
+            style.configure(
+                "TButton",
+                background=field_bg,
+                foreground=fg,
+                borderwidth=1,
+                padding=(pad_med, pad_small),
+                font=fonts["normal"]
+            )
+            style.map("TButton", background=[("active", accent)])
 
-                    style.configure("TCheckbutton", background=bg, foreground=fg)
+            style.configure("TCheckbutton", background=bg, foreground=fg, font=fonts["normal"])
+            style.configure("TCombobox", fieldbackground=field_bg, background=field_bg, foreground=fg, arrowcolor=fg, padding=pad_small, font=fonts["normal"])
+            style.configure("TEntry", fieldbackground=field_bg, foreground=fg, padding=pad_small, font=fonts["normal"])
 
-                    style.configure("TCombobox",
-                        fieldbackground="#3c3f41",
-                        background="#3c3f41",
-                        foreground="white",
-                        arrowcolor="white"
-                    )
-                    style.configure("TEntry",
-                        fieldbackground="#3c3f41",
-                        foreground="white"
-                    )
+            style.map(
+                "TCombobox",
+                fieldbackground=[("readonly", field_bg)],
+                selectbackground=[("readonly", accent)],
+                selectforeground=[("readonly", "white")]
+            )
 
-                    style.map("TCombobox",
-                        fieldbackground=[("readonly", "#3c3f41")],
-                        selectbackground=[("readonly", "#4a90e2")],
-                        selectforeground=[("readonly", "white")]
-                    )
+            style.configure("Treeview", background=bg, foreground=fg, fieldbackground=bg, rowheight=row_h, font=fonts["normal"])
+            style.map("Treeview", background=[("selected", accent)], foreground=[("selected", "white")])
+            style.configure("Treeview.Heading", background=field_bg, foreground=fg, font=fonts["bold"], padding=(pad_small, pad_small))
 
-                
-                    style.configure("Treeview",
-                                    background="#2b2b2b",
-                                    foreground="white",
-                                    fieldbackground="#2b2b2b",
-                                    rowheight=25)
+            self.option_add("*TCombobox*Listbox.background", field_bg)
+            self.option_add("*TCombobox*Listbox.foreground", fg)
+            self.option_add("*TCombobox*Listbox.selectBackground", accent)
+            self.option_add("*TCombobox*Listbox.selectForeground", "white")
+            self.option_add("*Background", bg)
+            self.option_add("*Foreground", fg)
+            self.option_add("*Font", fonts["normal"])
+            self.option_add("*Entry.Background", field_bg)
+            self.option_add("*Entry.Foreground", fg)
+            self.option_add("*Entry.insertBackground", fg)
 
-                    style.map("Treeview",
-                              background=[("selected", "#4a90e2")],
-                              foreground=[("selected", "white")])
+        else:
+            style.theme_use("default")
+            self.configure(bg=default_bg)
 
-                    style.configure("Treeview.Heading",
-                                    background="#3c3f41",
-                                    foreground="white")
-                    self.option_add("*TCombobox*Listbox.background", "#3c3f41")
-                    self.option_add("*TCombobox*Listbox.foreground", "white")
-                    self.option_add("*TCombobox*Listbox.selectBackground", "#4a90e2")
-                    self.option_add("*TCombobox*Listbox.selectForeground", "white")
-                    self.option_add("*Background", "#2b2b2b")
-                    self.option_add("*Foreground", "white")
-                    self.option_add("*Entry.Background", "#3c3f41")
-                    self.option_add("*Entry.Foreground", "white")
-                    self.option_add("*Entry.insertBackground", "white")  
+            style.configure(".", font=fonts["normal"])
+            style.configure("TFrame", background=default_bg)
+            style.configure("TLabel", background=default_bg, foreground=default_fg, font=fonts["normal"])
+            style.configure("TLabelframe", background=default_bg, foreground=default_fg)
+            style.configure("TLabelframe.Label", background=default_bg, foreground=default_fg, font=fonts["bold"])
+            style.configure("TButton", padding=(pad_med, pad_small), font=fonts["normal"])
+            style.configure("TCheckbutton", font=fonts["normal"])
+            style.configure("TCombobox", padding=pad_small, font=fonts["normal"])
+            style.configure("TEntry", padding=pad_small, font=fonts["normal"])
+            style.configure("Treeview", rowheight=row_h, font=fonts["normal"])
+            style.configure("Treeview.Heading", font=fonts["bold"], padding=(pad_small, pad_small))
 
-                else:
-                    # Reset to default light theme
-                    style.theme_use("default")
-                    self.configure(bg="#f0f0f0")
-                self.BuildTree()
-                self.ShowTree(self.df)
+            self.option_add("*Background", default_bg)
+            self.option_add("*Foreground", default_fg)
+            self.option_add("*Font", fonts["normal"])
+
+        if hasattr(self, "tree"):
+            self.FitColumns()
 
 
       # Toolbar
     def CreateToolbar(self): #creates a tool bar with navigation buttons
-        bar = ttk.Frame(self, padding=(8, 4))
-        bar.pack(side="top", fill="x")
+        self.toolbar_frame = ttk.Frame(self, padding=(self.ScaleValue(8, 4), self.ScaleValue(6, 4)))
+        self.toolbar_frame.pack(side="top", fill="x")
+
+        left = ttk.Frame(self.toolbar_frame)
+        left.pack(side="left", fill="x", expand=True)
+
+        right = ttk.Frame(self.toolbar_frame)
+        right.pack(side="right")
+
         self.SearchInput = tk.StringVar()
-        #if an entry is place in Entry, it will call SearchInput
-        entry = ttk.Entry(bar, textvariable=self.SearchInput, width=30)
-        entry.pack(side="right", padx=4)
 
-        #bind search bar to the apply filter command
+        ttk.Button(left, text="New", command=self.AddProperty).pack(side="left", padx=4, pady=2)
+        ttk.Button(left, text="Delete", command=self.DelProperty).pack(side="left", padx=4, pady=2)
+        ttk.Button(left, text="Show Favorites", command=self.ShowFavs).pack(side="left", padx=4, pady=2)
+        ttk.Button(left, text="Toggle Mode", command=self.ToggleMode).pack(side="left", padx=4, pady=2)
+
+        entry = ttk.Entry(right, textvariable=self.SearchInput, width=max(20, self.ScaleValue(30, 20)))
+        entry.pack(side="left", padx=4, pady=2)
         entry.bind("<Return>", self.ApplyFilters)
-        #The Apply filters take into account, the filters selected and the search bar contents
-        ttk.Button(bar, text="Search", command=self.ApplyFilters).pack(side="right", padx=4)
-        
-        ttk.Button(bar, text="New", command=self.AddProperty).pack(side="left", padx=4)
-        ttk.Button(bar, text="Delete", command=self.DelProperty).pack(side="left", padx=4)
-        ttk.Button(bar, text="Show Favorites", command=self.ShowFavs).pack(side="left", padx=4)
 
-        ttk.Button(bar, text="Toggle Mode", command=self.ToggleMode).pack(side="left", padx=4)  # NEW
+        ttk.Button(right, text="Search", command=self.ApplyFilters).pack(side="left", padx=4, pady=2)
 
    #Filters
     #Different filters based on customer needs
     def BuildFilters(self):
-        frm = ttk.LabelFrame(self, text="Filters & Sort", padding=8)
-        frm.pack(side="top", fill="x", padx=8, pady=(0, 8))
+        pad_x = self.ScaleValue(6, 4)
+        pad_y = self.ScaleValue(6, 3)
+        entry_w = max(12, self.ScaleValue(14, 12))
+        combo_w = max(14, self.ScaleValue(16, 14))
+
+        self.filter_frame = ttk.LabelFrame(self, text="Filters & Sort", padding=self.ScaleValue(8, 6))
+        self.filter_frame.pack(side="top", fill="x", padx=self.ScaleValue(8, 4), pady=(0, self.ScaleValue(8, 4)))
+
+        for c in range(9):
+            self.filter_frame.grid_columnconfigure(c, weight=1)
 
         self.BlightedFilter = tk.BooleanVar(value=False)
         self.VacancyFilter = tk.BooleanVar(value=False)
 
-        ttk.Checkbutton(frm, text="Blighted", variable=self.BlightedFilter)\
-            .grid(row=0, column=0, sticky="w")
-
-        ttk.Checkbutton(frm, text="Vacant", variable=self.VacancyFilter)\
-            .grid(row=0, column=1, sticky="w")
-
-        #Use Dropdown
-        uses = ["Both"] + sorted(self.df["Commercial"].dropna().unique().tolist() +
-                                 self.df["Residential"].dropna().unique().tolist())
+        ttk.Checkbutton(self.filter_frame, text="Blighted", variable=self.BlightedFilter).grid(row=0, column=0, sticky="w", padx=pad_x, pady=pad_y)
+        ttk.Checkbutton(self.filter_frame, text="Vacant", variable=self.VacancyFilter).grid(row=0, column=1, sticky="w", padx=pad_x, pady=pad_y)
 
         self.use_var = tk.StringVar(value="Both")
-        self.use = ttk.Combobox(frm, textvariable=self.use_var, values=["Both", "Commercial", "Residential"], state="readonly")
-        self.use.grid(row=0, column=2, padx=6)
+        self.use = ttk.Combobox(self.filter_frame, textvariable=self.use_var, values=["Both", "Commercial", "Residential"], state="readonly", width=combo_w)
+        self.use.grid(row=0, column=2, sticky="ew", padx=pad_x, pady=pad_y)
 
-        #City Dropdown
         city_list = ["All"] + sorted(self.df["City:"].dropna().astype(str).str.strip().unique().tolist())
-
         self.city_var = tk.StringVar(value="All")
-        self.City = ttk.Combobox(frm, textvariable=self.city_var, values=city_list, state="readonly")
-        self.City.grid(row=0, column=3, padx=6)
+        self.City = ttk.Combobox(self.filter_frame, textvariable=self.city_var, values=city_list, state="readonly", width=combo_w)
+        self.City.grid(row=0, column=3, sticky="ew", padx=pad_x, pady=pad_y)
 
-        # Municipality Dropdown
         muni_list = ["All"] + sorted(self.df["Municipality:"].dropna().astype(str).str.strip().unique().tolist())
-
         self.muni_var = tk.StringVar(value="All")
-        self.Municipality = ttk.Combobox(frm, textvariable=self.muni_var, values=muni_list, state="readonly")
-        self.Municipality.grid(row=0, column=4, padx=6)
+        self.Municipality = ttk.Combobox(self.filter_frame, textvariable=self.muni_var, values=muni_list, state="readonly", width=combo_w)
+        self.Municipality.grid(row=0, column=4, sticky="ew", padx=pad_x, pady=pad_y)
 
-        #Date Range
-        ttk.Label(frm, text="From Date").grid(row=1,column=0,sticky="w")
-        self.from_date = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.from_date,width=12).grid(row=1,column=1)
+        ttk.Button(self.filter_frame, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, sticky="ew", padx=pad_x, pady=pad_y)
+        ttk.Button(self.filter_frame, text="Reset", command=self.ResetFilters).grid(row=0, column=6, sticky="ew", padx=pad_x, pady=pad_y)
 
-        #calendar button
-        self.calbtn=ttk.Button(frm,text="📅",width=3,
-
-            command=lambda:open_calendar(frm,self.from_date))
-        self.calbtn.grid(row=1,column=2,padx=4)
-
-        ttk.Label(frm, text="To Date").grid(row=1,column=3,sticky="w")
-        self.to_date = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.to_date,width=12).grid(row=1,column=4)
-
-        self.tobtn=ttk.Button(frm,text="📅",width=3,
-
-            command=lambda:open_calendar(frm,self.to_date)) 
-        self.tobtn.grid(row=1,column=5,padx=4)
-
-        #ZipCode Filter
-        ttk.Label(frm,text="ZipCode:").grid(row=1,column=6,sticky="w")
-        zip_list = ["All"] + sorted(self.df["Zipcode:"].dropna().astype(str).unique().tolist())
-
-        self.zip_var = tk.StringVar(value="All")
-        self.zip = ttk.Combobox(frm, textvariable=self.zip_var,values=zip_list,state="readonly")
-        self.zip.grid(row=1,column=7,padx=6)
-
-        #LastModified Filter
-        self.modified_var = tk.StringVar(value="All")
-        ttk.Label(frm,text="Last Modified").grid(row=2, column=0)
-        self.mod_date = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.mod_date,width=12).grid(row=2,column=1)
-
-        self.modbtn=ttk.Button(frm,text="📅",width=3,
-
-            command=lambda:open_calendar(frm,self.mod_date))
-        self.modbtn.grid(row=2,column=2,padx=4)
-        
-        # Buttons
-        ttk.Button(frm, text="Apply", command=self.ApplyFilters).grid(row=0, column=5, padx=6)
-
-        ttk.Button(frm, text="Reset", command=self.ResetFilters).grid(row=0, column=6, padx=6)
-
-        #apply and reset filters call respective commands
         self.map_regen = tk.BooleanVar(value=False)
-        ttk.Button(frm, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="w")
-        ttk.Checkbutton(frm, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w")
+        ttk.Button(self.filter_frame, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="ew", padx=pad_x, pady=pad_y)
+        ttk.Checkbutton(self.filter_frame, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w", padx=pad_x, pady=pad_y)
+
+        ttk.Label(self.filter_frame, text="From Date").grid(row=1, column=0, sticky="w", padx=pad_x, pady=pad_y)
+        self.from_date = tk.StringVar()
+        ttk.Entry(self.filter_frame, textvariable=self.from_date, width=entry_w).grid(row=1, column=1, sticky="ew", padx=pad_x, pady=pad_y)
+        self.calbtn = ttk.Button(self.filter_frame, text="📅", width=3, command=lambda: open_calendar(self.filter_frame, self.from_date))
+        self.calbtn.grid(row=1, column=2, padx=pad_x, pady=pad_y)
+
+        ttk.Label(self.filter_frame, text="To Date").grid(row=1, column=3, sticky="w", padx=pad_x, pady=pad_y)
+        self.to_date = tk.StringVar()
+        ttk.Entry(self.filter_frame, textvariable=self.to_date, width=entry_w).grid(row=1, column=4, sticky="ew", padx=pad_x, pady=pad_y)
+        self.tobtn = ttk.Button(self.filter_frame, text="📅", width=3, command=lambda: open_calendar(self.filter_frame, self.to_date))
+        self.tobtn.grid(row=1, column=5, padx=pad_x, pady=pad_y)
+
+        ttk.Label(self.filter_frame, text="ZipCode").grid(row=1, column=6, sticky="w", padx=pad_x, pady=pad_y)
+        zip_list = ["All"] + sorted(self.df["Zipcode:"].dropna().astype(str).unique().tolist())
+        self.zip_var = tk.StringVar(value="All")
+        self.zip = ttk.Combobox(self.filter_frame, textvariable=self.zip_var, values=zip_list, state="readonly", width=combo_w)
+        self.zip.grid(row=1, column=7, sticky="ew", padx=pad_x, pady=pad_y)
+
+        ttk.Label(self.filter_frame, text="Modified Date").grid(row=2, column=0, sticky="w", padx=pad_x, pady=pad_y)
+        self.modified_var = tk.StringVar(value="All")
+        self.mod_date = tk.StringVar()
+        ttk.Entry(self.filter_frame, textvariable=self.mod_date, width=entry_w).grid(row=2, column=1, sticky="ew", padx=pad_x, pady=pad_y)
+        self.modbtn = ttk.Button(self.filter_frame, text="📅", width=3, command=lambda: open_calendar(self.filter_frame, self.mod_date))
+        self.modbtn.grid(row=2, column=2, padx=pad_x, pady=pad_y)
 
 
     # This fuction will create a map with all the adresses in the dataframe
@@ -596,6 +680,7 @@ class App(tk.Tk):
 
     #create a new csv with the 
     def NewCSV(self):
+        global CSV_PATH
         # Let the user choose a CSV file first
         user_path = choose_csv_path()
         if user_path:
@@ -647,13 +732,18 @@ class App(tk.Tk):
 
     #fit all columns to one window
     def FitColumns(self, event=None):
+        if not hasattr(self, "tree"):
+            return
+
         total_width = self.tree.winfo_width()
         columns = self.tree["columns"]
 
-        if not columns:
+        if not columns or total_width <= 1:
             return
 
-        col_width = max(int(total_width / len(columns)), 120)
+        scrollbar_space = self.ScaleValue(20, 16)
+        usable_width = max(200, total_width - scrollbar_space)
+        col_width = max(int(usable_width / len(columns)), self.ScaleValue(110, 80))
 
         for col in columns:
             self.tree.column(col, width=col_width, stretch=True)
@@ -681,7 +771,7 @@ class App(tk.Tk):
 
         # Create container frame once per rebuild
         self.tree_container = ttk.Frame(self)
-        self.tree_container.pack(side="top", fill="both", expand=True, padx=8, pady=8)
+        self.tree_container.pack(side="top", fill="both", expand=True, padx=self.ScaleValue(8, 4), pady=self.ScaleValue(8, 4))
 
         # Create Treeview
         self.tree = ttk.Treeview(
@@ -730,10 +820,11 @@ class App(tk.Tk):
         # Configure headings + columns
         for col in self.visible_columns:
             self.tree.heading(col, text=col, command=lambda c=col: SortCol(c))
-            self.tree.column(col, width=50, anchor="w",minwidth=50)
+            self.tree.column(col, width=self.ScaleValue(110, 80), anchor="w", minwidth=self.ScaleValue(110, 80), stretch=True)
 
         # Selection binding
         self.tree.bind("<<TreeviewSelect>>", self.Selected)
+        self.tree.bind("<Configure>", self.FitColumns)
 
         # Insert data
         self._row_ids = {}
@@ -742,6 +833,8 @@ class App(tk.Tk):
             vals = [row.get(col, "") for col in self.visible_columns]
             iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
             self._row_ids[idx] = iid
+
+        self.after(50, self.FitColumns)
 
     #update the rows that are visible depending on filtering results
     def ShowTree(self, data):
@@ -847,6 +940,35 @@ class App(tk.Tk):
         self.df = Originaldf.copy()
         self.ShowTree(self.df)
 
+    def SaveMainCSV(self):
+        global Originaldf
+        try:
+            self.df.to_csv(CSV_PATH, index=False)
+            Originaldf = self.df.copy()
+            return True
+        except Exception as e:
+            messagebox.showerror("Save error", f"Failed to save file:\n{e}")
+            return False
+
+    def SaveBackup(self):
+        try:
+            backup_path = get_backup_path(CSV_PATH)
+            self.df.to_csv(backup_path, index=False)
+            return True
+        except Exception as e:
+            messagebox.showerror("Backup error", f"Failed to create backup:\n{e}")
+            return False
+
+    def OnClose(self):
+        try:
+            if not self.SaveMainCSV():
+                return
+            if not self.SaveBackup():
+                return
+            self.destroy()
+        except Exception as e:
+            messagebox.showerror("Close error", f"Failed while closing:\n{e}")
+
     def ShowImage(self):
         #displays current image from ImageList in the UI
         #maintains aspect ratio
@@ -894,8 +1016,9 @@ class App(tk.Tk):
         #window header of property address
         win = tk.Toplevel(self)
         win.title(f"Property Address: {row.get('Property Address Number:', '')} {row.get('Property Address Street Name:', '')}")
-        win.geometry("800x600")
-        win.minsize(400, 300)
+        fonts = self.CurrentFonts()
+        win.geometry(f"{self.ScaleValue(800, 640)}x{self.ScaleValue(600, 480)}")
+        win.minsize(self.ScaleValue(400, 340), self.ScaleValue(300, 260))
         win.columnconfigure(0, weight=1,uniform="half")
         win.columnconfigure(1, weight=1,uniform="half")
         win.rowconfigure(0, weight=0)
@@ -1103,16 +1226,16 @@ class App(tk.Tk):
                     ttk.Label(ScrollFrame, text=f"{label}:", font=("Arial", 10, "bold"))\
                         .grid(row=r, column=0, sticky="ne", padx=6, pady=4)
 
-                    ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w")\
+                    ttk.Label(ScrollFrame, text=val, wraplength=self.ScaleValue(300, 220), anchor="w")\
                         .grid(row=r, column=1, sticky="nw", padx=6, pady=4)
         
         else: #display information in hidden columns - more information
             for i, col in enumerate(hidden_columns):
                 val = row.get(col, "")
-                ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))\
+                ttk.Label(ScrollFrame, text=f"{col}:", font=fonts["bold"])\
                     .grid(row=i, column=0, sticky="ne", padx=6, pady=4)
 
-                ttk.Label(ScrollFrame, text=val, wraplength=300, anchor="w")\
+                ttk.Label(ScrollFrame, text=val, wraplength=self.ScaleValue(300, 220), anchor="w")\
                     .grid(row=i, column=1, sticky="nw", padx=6, pady=4)
 
         ScrollFrame.grid_columnconfigure(1, weight=1)
@@ -1150,7 +1273,7 @@ class App(tk.Tk):
         tk.Label(
             ScrollFrame,
             text=f"Notes: {row.get('Notes','')}",
-            font=("Arial", 12)
+            font=fonts["title"]
         ).grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=4)
 
         ScrollFrame.grid_columnconfigure(1, weight=1)
@@ -1176,7 +1299,7 @@ class App(tk.Tk):
         RightFrame.columnconfigure(0,weight=1)
 
         # Title label inside RightFrame
-        tk.Label(RightFrame, text="Map Viewer", font=("Arial", 12, "bold")).pack(pady=5)
+        tk.Label(RightFrame, text="Map Viewer", font=fonts["title"]).pack(pady=5)
         # generate map html and png paths if none exist
 
         # use the address to build an ID that makes sense
@@ -1299,7 +1422,7 @@ class App(tk.Tk):
                     var.set(False)   
 
             def apply_changes():
-                VisibleColumns = [
+                self.visible_columns = [
                     col for col, var in checkbox_vars.items() if var.get()
                 ]
                 self.BuildTree()
@@ -1355,20 +1478,8 @@ class App(tk.Tk):
             # Reset index so everything "pushes up" and indices are contiguous
             self.df = self.df.reset_index(drop=True)
 
-            # Backup CSV before writing
-            csv_path = CSV_PATH
-            try:
-                if os.path.exists(csv_path):
-                    bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    os.replace(csv_path, bak_name)
-            except Exception as e:
-                messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
-
-            # Save updated CSV
-            try:
-                self.df.to_csv(csv_path, index=False)
-            except Exception as e:
-                messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
+            if not self.SaveMainCSV():
+                return
 
             # Rebuild Treeview contents and _row_ids mapping
             # remove all existing items
@@ -1392,8 +1503,9 @@ class App(tk.Tk):
 
         new_win = tk.Toplevel(self)
         new_win.title("New Property")
-        new_win.geometry("620x520")
-        new_win.minsize(420, 300)
+        fonts = self.CurrentFonts()
+        new_win.geometry(f"{self.ScaleValue(620, 500)}x{self.ScaleValue(520, 420)}")
+        new_win.minsize(self.ScaleValue(420, 340), self.ScaleValue(300, 260))
 
         # Scrollable area
         addFrame = ttk.Frame(new_win, padding=8)
@@ -1424,7 +1536,7 @@ class App(tk.Tk):
         # Build form
         for i, col in enumerate(new_values):
 
-            lbl = ttk.Label(ScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))
+            lbl = ttk.Label(ScrollFrame, text=f"{col}:", font=fonts["bold"])
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
 
             var = tk.StringVar()
@@ -1563,12 +1675,8 @@ class App(tk.Tk):
             # Append new row
             self.df.loc[len(self.df)] = new_row
 
-            # Save CSV with backup
-            if os.path.exists(CSV_PATH):
-                bak = f"{os.path.splitext(CSV_PATH)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                os.replace(CSV_PATH, bak)
-
-            self.df.to_csv(CSV_PATH, index=False)
+            if not self.SaveMainCSV():
+                return
 
             # Update Treeview
             idx = len(self.df) - 1
@@ -1614,8 +1722,9 @@ class App(tk.Tk):
 
         edit_win = tk.Toplevel(self)
         edit_win.title("Edit Property")
-        edit_win.geometry("620x520")
-        edit_win.minsize(420, 300)
+        fonts = self.CurrentFonts()
+        edit_win.geometry(f"{self.ScaleValue(620, 500)}x{self.ScaleValue(520, 420)}")
+        edit_win.minsize(self.ScaleValue(420, 340), self.ScaleValue(300, 260))
 
         # Scrollable area 
         frame = ttk.Frame(edit_win, padding=8)
@@ -1661,7 +1770,7 @@ class App(tk.Tk):
             val = "" if pd.isna(val) else str(val)
             typ = _infer_type(row.get(col))
 
-            lbl = ttk.Label(inner, text=f"{col}:", font=("Arial", 10, "bold"))
+            lbl = ttk.Label(inner, text=f"{col}:", font=fonts["bold"])
             lbl.grid(row=i, column=0, sticky="e", padx=6, pady=6)
 
             # Default var
@@ -1812,13 +1921,8 @@ class App(tk.Tk):
                     # Assign to DataFrame
                     self.df.at[idx, c] = v
 
-                # Backup
-                if os.path.exists(CSV_PATH):
-                    bak = f"{os.path.splitext(CSV_PATH)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    os.replace(CSV_PATH, bak)
-
-                # Save CSV
-                self.df.to_csv(CSV_PATH, index=False)
+                if not self.SaveMainCSV():
+                    return
 
                 # Update Treeview
                 if hasattr(self, "_row_ids") and idx in self._row_ids:
@@ -1852,7 +1956,7 @@ class App(tk.Tk):
         #build small window for user to type note in
         note_win = tk.Toplevel(self)
         note_win.title("Add Note")
-        note_win.geometry("420x180")
+        note_win.geometry(f"{self.ScaleValue(420, 340)}x{self.ScaleValue(220, 190)}")
         try:
             note_win.transient(parent_win or self)
             note_win.grab_set()
@@ -1891,19 +1995,8 @@ class App(tk.Tk):
 
             self.df.at[idx, "Notes"] = NewInputs
 
-            # save CSV (with backup)
-            csv_path = CSV_PATH
-            try:
-                if os.path.exists(csv_path):
-                    bak_name = f"{os.path.splitext(csv_path)[0]}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    os.replace(csv_path, bak_name)
-            except Exception as e:
-                #if csv is already open
-                messagebox.showwarning("Backup warning", f"Failed to create backup: {e}")
-            try:
-                self.df.to_csv(csv_path, index=False)
-            except Exception as e:
-                messagebox.showwarning("Save warning", f"Failed to write CSV ({csv_path}): {e}")
+            if not self.SaveMainCSV():
+                return
 
             # update tree if needed
             if hasattr(self, "_row_ids") and idx in self._row_ids:
