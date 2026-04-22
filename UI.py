@@ -124,6 +124,28 @@ def download_drive_image(file_id):
     #Fix image orientaition based on EXIF data
     img = ImageOps.exif_transpose(img)
     return img
+        
+def extract_drive_id(url):
+    #Extracts Google Drive file ID from multiple possible URL formats.
+    #Returns the file ID string or None if not found.
+
+
+    # Handles /file/d/<id>/view
+    match = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
+    if match:
+        return match.group(1)
+
+    # Handles open?id=<id>
+    match = re.search(r"id=([a-zA-Z0-9_-]+)", url)
+    if match:
+        return match.group(1)
+
+    # Handles uc?id=<id>
+    match = re.search(r"uc\?id=([a-zA-Z0-9_-]+)", url)
+    if match:
+        return match.group(1)
+
+    return None
 
 
 #hover help text for widgets
@@ -1178,36 +1200,45 @@ class App(tk.Tk):
        
 
         
-        # InfoFrame and RightFrame 
-        InfoFrame=ttk.Frame(win,relief="solid",padding=5)
-        InfoFrame.grid(row=1,column=0,sticky="nsew", padx=5,pady=5)
+        InfoFrame = ttk.Frame(win, relief="solid", padding=5)
+        InfoFrame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        InfoFrame.grid_rowconfigure(0,weight=1)
-        InfoFrame.grid_columnconfigure(0,weight=1)
+        InfoFrame.rowconfigure(0, weight=1)
+        InfoFrame.columnconfigure(0, weight=1)
 
-        canvas = tk.Canvas(InfoFrame)
-        vscroll = ttk.Scrollbar(InfoFrame, orient="vertical", command=canvas.yview)
-        hscroll = ttk.Scrollbar(InfoFrame, orient="horizontal", command=canvas.xview)
+        infcanvas = tk.Canvas(InfoFrame) #add scrollbars
+        infvscroll = ttk.Scrollbar(InfoFrame, orient="vertical", command=infcanvas.yview)
+        infhscroll = ttk.Scrollbar(InfoFrame, orient="horizontal", command=infcanvas.xview)
 
-        canvas.configure(
-            yscrollcommand=vscroll.set,
-            xscrollcommand=hscroll.set
+            #set scrollbars
+        infcanvas.configure(
+            yscrollcommand=infvscroll.set,
+            xscrollcommand=infhscroll.set
         )
 
-        canvas.grid(row=0, column=0, sticky="nsew")
-        vscroll.grid(row=0, column=1, sticky="ns") #add scrollbars to infoframe
-        hscroll.grid(row=1, column=0, sticky="ew")
+        infcanvas.grid(row=0, column=0, sticky="nsew")
+        infvscroll.grid(row=0, column=1, sticky="ns")
+        infhscroll.grid(row=1, column=0, sticky="ew")
 
-        ScrollFrame = ttk.Frame(canvas) 
-        canvas.create_window((0,0), window=ScrollFrame, anchor="nw")
+        infScrollFrame = ttk.Frame(infcanvas)
+        infScrollFrame.bind("<Configure>", lambda e: infcanvas.configure(scrollregion=canvas.bbox("all")))
+        infScrollFrame.grid_columnconfigure(0, weight=1)
+        infScrollFrame.grid_rowconfigure(0, weight=1)
+
+        infcanvas_window = infcanvas.create_window((0,0), window=infScrollFrame, anchor="nw")
+
+        def resize_canvas(event):
+            infcanvas.itemconfig(infcanvas_window, width=event.width)
+
+        infcanvas.bind("<Configure>", resize_canvas)
 
         def ConfigureFrame(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+            infcanvas.configure(scrollregion=infcanvas.bbox("all"))
 
-        ScrollFrame.bind("<Configure>", ConfigureFrame)
-
-
+        infScrollFrame.bind("<Configure>", ConfigureFrame)
+        
         hidden_columns=[col for col in self.all_columns if col not in self.visible_columns]
+
 
 
         if self.mode.get() == "Inventory": #display information necessary for inventory mode
@@ -1223,22 +1254,22 @@ class App(tk.Tk):
             for r, (label, col) in enumerate(summary_fields):
                 if col in self.df.columns:
                     val = row.get(col, "")
-                    ttk.Label(ScrollFrame, text=f"{label}:", font=("Arial", 10, "bold"))\
+                    ttk.Label(infScrollFrame, text=f"{label}:", font=("Arial", 10, "bold"))\
                         .grid(row=r, column=0, sticky="ne", padx=6, pady=4)
 
-                    ttk.Label(ScrollFrame, text=val, wraplength=self.ScaleValue(300, 220), anchor="w")\
+                    ttk.Label(infScrollFrame, text=val, anchor="w")\
                         .grid(row=r, column=1, sticky="nw", padx=6, pady=4)
         
         else: #display information in hidden columns - more information
             for i, col in enumerate(hidden_columns):
                 val = row.get(col, "")
-                ttk.Label(ScrollFrame, text=f"{col}:", font=fonts["bold"])\
+                ttk.Label(infScrollFrame, text=f"{col}:", font=("Arial", 10, "bold"))\
                     .grid(row=i, column=0, sticky="ne", padx=6, pady=4)
 
-                ttk.Label(ScrollFrame, text=val, wraplength=self.ScaleValue(300, 220), anchor="w")\
+                ttk.Label(infScrollFrame, text=val, wraplength=300, anchor="w")\
                     .grid(row=i, column=1, sticky="nw", padx=6, pady=4)
 
-        ScrollFrame.grid_columnconfigure(1, weight=1)
+        #ScrollFrame.grid_columnconfigure(1, weight=1)
  
        # NoteFrame for notes 
         NoteFrame = ttk.Frame(win, relief="solid", padding=5)
