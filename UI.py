@@ -333,9 +333,13 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.OnClose)
 
     def ToggleMode(self):
-        self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
-        self.RebuildLayout()
-        self.ApplyFilters()
+    self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
+    
+    self.RebuildLayout()
+    self.ApplyFilters()
+
+    if hasattr(self, "mode_label"):
+        self.mode_label.config(text=f"Mode: {self.mode.get()}")
 
     #  creates a faile menu with new, save, and exit app
     def CreateToolMenu(self): #creates a tool bar with navigation buttons
@@ -551,6 +555,7 @@ class App(tk.Tk):
         right.pack(side="right")
 
         self.SearchInput = tk.StringVar()
+        
 
         ttk.Button(left, text="New", command=self.AddProperty).pack(side="left", padx=4, pady=2)
         ttk.Button(left, text="Delete", command=self.DelProperty).pack(side="left", padx=4, pady=2)
@@ -562,6 +567,8 @@ class App(tk.Tk):
         entry.bind("<Return>", self.ApplyFilters)
 
         ttk.Button(right, text="Search", command=self.ApplyFilters).pack(side="left", padx=4, pady=2)
+        self.mode_label = ttk.Label(right, text=f"Mode: {self.mode.get()}")
+        self.mode_label.pack(side="left", padx=10)
 
    #Filters
     #Different filters based on customer needs
