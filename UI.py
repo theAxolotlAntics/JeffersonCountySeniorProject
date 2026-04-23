@@ -1414,36 +1414,56 @@ class App(tk.Tk):
             top.geometry("300x400")
             top.grab_set()  # modal window
 
+            top.rowconfigure(2, weight=1)
+            top.columnconfigure(0, weight=1)
+
             checkbox_vars = {}
 
-            # Scrollable frame (in case many columns)
-            canvas = tk.Canvas(top)
-            scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
-            scroll_frame = ttk.Frame(canvas)
+            columnFrame = ttk.Frame(top, relief="solid", padding=5)
+            columnFrame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
-            scroll_frame.bind(
-                "<Configure>",
-                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            columnFrame.rowconfigure(0, weight=1)
+            columnFrame.columnconfigure(0, weight=1)
+
+            # Scrollable frame (in case many columns)
+            columncanvas = tk.Canvas(columnFrame) #add scrollbars
+            columnvscroll = ttk.Scrollbar(columnFrame, orient="vertical", command=columncanvas.yview)
+            columnhscroll = ttk.Scrollbar(columnFrame, orient="horizontal", command=columncanvas.xview)
+
+                #set scrollbars
+            columncanvas.configure(
+                yscrollcommand=columnvscroll.set,
+                xscrollcommand=columnhscroll.set
             )
 
-            canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-            canvas.configure(yscrollcommand=scrollbar.set)
+            columncanvas.grid(row=0, column=0, sticky="nsew")
+            columnvscroll.grid(row=0, column=1, sticky="ns")
+            columnhscroll.grid(row=1, column=0, sticky="ew")
 
-            canvas.pack(side="left", fill="both", expand=True)
-            scrollbar.pack(side="right", fill="y")
+            columnScrollFrame = ttk.Frame(columncanvas)
+            #columnScrollFrame.bind("<Configure>", lambda e: columncanvas.configure(scrollregion=canvas.bbox("all")))
+            columnScrollFrame.grid_columnconfigure(0, weight=1)
+            columnScrollFrame.grid_rowconfigure(0, weight=1)
+
+            columncanvas_window = columncanvas.create_window((0,0), window=columnScrollFrame, anchor="nw")
+
+            def ConfigureFrame(event):
+                columncanvas.configure(scrollregion=columncanvas.bbox("all"))
+
+            columnScrollFrame.bind("<Configure>", ConfigureFrame)
 
             # Create checkboxes
-            for col in self.all_columns:
+            for i,col in enumerate(self.all_columns):
                 var = tk.BooleanVar(value=(col in self.visible_columns))
-                checkbox = ttk.Checkbutton(scroll_frame, text=col, variable=var)
-                checkbox.pack(anchor="w", padx=10, pady=2)
+                checkbox = ttk.Checkbutton(columnScrollFrame, text=col, variable=var)
+                checkbox.grid(row=i, column=0, columnspan=2, sticky="w", padx=4, pady=4)
                 checkbox_vars[col] = var
             def select_all():
                 for var in checkbox_vars.values():
                     var.set(True)
             def select_normal():
                 for col,var in checkbox_vars.items():
-                        if col in self.visible_columns:
+                        if col in VisibleColumns:
                                 var.set(True)
                         else:
                                 var.set(False)
@@ -1460,12 +1480,15 @@ class App(tk.Tk):
                 self.ShowTree(self.df)  # repopulate tree
                 top.destroy()
             btn_frame = ttk.Frame(top)
-            btn_frame.pack(pady=10)
+            btn_frame.grid(row=3, column=0, sticky="ew", pady=10)
 
-            ttk.Button(btn_frame, text="Select All", command=select_all).pack(side="left", padx=5)
-            ttk.Button(btn_frame, text="Deselect All", command=deselect_all).pack(side="left", padx=5)
-            ttk.Button(btn_frame, text="Default", command=select_normal).pack(side="left", padx=5)
-            ttk.Button(btn_frame, text="Apply", command=apply_changes).pack(side="left", padx=5)  
+            ttk.Button(btn_frame, text="Select All", command=select_all).grid(row=0, column=0, padx=5, pady=5)
+
+            ttk.Button(btn_frame, text="Deselect All", command=deselect_all).grid(row=0, column=1, padx=5, pady=5)
+
+            ttk.Button(btn_frame, text="Default", command=select_normal).grid(row=0, column=2, padx=5, pady=5)
+
+            ttk.Button(btn_frame, text="Apply", command=apply_changes).grid(row=0, column=3, padx=5, pady=5)
 
 
  #function that deletes a row from the csv, thus deleting from treeview
