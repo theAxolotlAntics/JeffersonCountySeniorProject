@@ -206,6 +206,8 @@ CSV_PATH = "Blight Mitigation Data.csv"
 def choose_csv_path():
     #Prompt the user to pick a CSV file. If they cancel, fall back to DummyData.csv.
     root = tk.Tk()
+    icon = tk.PhotoImage(file=str(BASE_DIR / "resources" / "JC.png"))
+    root.wm_iconphoto(True, icon)
     root.withdraw()
     path = filedialog.askopenfilename(
         title="Select CSV file",
