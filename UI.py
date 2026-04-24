@@ -333,13 +333,13 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.OnClose)
 
     def ToggleMode(self):
-    self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
-    
-    self.RebuildLayout()
-    self.ApplyFilters()
+        self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
+        
+        self.RebuildLayout()
+        self.ApplyFilters()
 
-    if hasattr(self, "mode_label"):
-        self.mode_label.config(text=f"Mode: {self.mode.get()}")
+        if hasattr(self, "mode_label"):
+            self.mode_label.config(text=f"Mode: {self.mode.get()}")
 
     #  creates a faile menu with new, save, and exit app
     def CreateToolMenu(self): #creates a tool bar with navigation buttons
