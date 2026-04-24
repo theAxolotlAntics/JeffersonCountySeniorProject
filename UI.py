@@ -178,11 +178,12 @@ class ToolTip:
 
 #calendar pop up function
 def open_calendar(parent,var):
-    #opens a calendar widget in a popup window and writes a selected ate into Tkinter StringVar
-    top = tk.Toplevel(parent)
+    # opens a calendar popup window
+    calendar = tk.Toplevel(parent)
+    calendar.attributes('-topmost', True)  # keeps window on top
 
-    # Create the calendar widget
-    cal = Calendar(top, selectmode="day")
+    # create the calendar widget
+    cal = Calendar(calendar, selectmode="day")
     cal.pack(pady=10)
     
     # when date selected
@@ -292,7 +293,8 @@ class App(tk.Tk):
         super().__init__()
         #configure window
         self.title(Title)
-        self.geometry("1100x600")
+        self.attributes('-topmost',True)   
+        self.geometry("1920x1080")
         self.minsize(900, 520) #min size of the main window
         self.open_windows = []
 
@@ -400,6 +402,7 @@ class App(tk.Tk):
 
     def ShowFontSizeMenu(self):
         top = tk.Toplevel(self)
+        top.attributes('-topmost',True)
         top.title("Font Size")
         top.geometry("340x180")
         top.minsize(300, 160)
@@ -465,6 +468,7 @@ class App(tk.Tk):
 
         top = tk.Toplevel(self)
         top.title("Themes")
+        top.attributes('-topmost',True)
         top.geometry("280x180")
         top.minsize(260, 160)
         top.grab_set()
@@ -747,6 +751,7 @@ class App(tk.Tk):
     
             info_win = tk.Toplevel(self)
             info_win.title("Important Information")
+            info_win.attributes('-topmost',True)
             info_win.geometry("420x220")
             info_win.resizable(False, False)
             info_win.grab_set()  
@@ -1109,6 +1114,7 @@ class App(tk.Tk):
         self.ApplyThemeToWindow(win)
         win.title(f"Property Address: {row.get('Property Address Number:', '')} {row.get('Property Address Street Name:', '')}")
         fonts = self.CurrentFonts()
+        win.attributes('-topmost',True)
         win.geometry(f"{self.ScaleValue(800, 640)}x{self.ScaleValue(600, 480)}")
         win.minsize(self.ScaleValue(400, 340), self.ScaleValue(300, 260))
         win.columnconfigure(0, weight=1,uniform="half")
@@ -1487,6 +1493,7 @@ class App(tk.Tk):
 
             top = tk.Toplevel(self)
             top.title("Show / Hide Columns")
+            top.attributes('-topmost',True)
             top.geometry("300x400")
             top.grab_set()  # modal window
 
@@ -1633,6 +1640,7 @@ class App(tk.Tk):
 
         new_win = tk.Toplevel(self)
         new_win.title("New Property")
+        new_win.attributes('-topmost',True)
         fonts = self.CurrentFonts()
         new_win.geometry(f"{self.ScaleValue(620, 500)}x{self.ScaleValue(520, 420)}")
         new_win.minsize(self.ScaleValue(420, 340), self.ScaleValue(300, 260))
@@ -1853,6 +1861,7 @@ class App(tk.Tk):
         edit_win = tk.Toplevel(self)
         edit_win.title("Edit Property")
         fonts = self.CurrentFonts()
+        edit_win.attributes('-topmost',True)
         edit_win.geometry(f"{self.ScaleValue(620, 500)}x{self.ScaleValue(520, 420)}")
         edit_win.minsize(self.ScaleValue(420, 340), self.ScaleValue(300, 260))
 
@@ -2145,6 +2154,26 @@ class App(tk.Tk):
             except Exception:
                 pass
             note_win.destroy()
+
+             # reselect row in tree and reopen Selected window
+            if hasattr(self, "_row_ids") and idx in self._row_ids:
+                try:
+                    iid = self._row_ids[idx]
+
+                     # destroy old property window first
+                    if parent_win is not None and parent_win.winfo_exists():
+                        parent_win.destroy()
+
+                    # clear old selection and reselect current row
+                    self.tree.selection_remove(self.tree.selection())
+                    self.tree.selection_set(iid)
+                    self.tree.focus(iid)
+                    self.tree.see(iid)
+
+
+                
+                except Exception as e:
+                    print("Error reopening Selected window:", e)
 
         #close not window if pressing cancel
         def OnCancel():
