@@ -108,16 +108,16 @@ def _save_geocode_cache(cache: dict):
     except Exception as e:
         logger.warning("Failed to write geocode cache: %s", e)
 
-def geocode_address(address, label, status, cache, retries=2, delay=1.0):
+def geocode_address(address, label, status, cache, retries=2, delay=1.0, silent = True):
     if not address or not isinstance(address, str):
-        logger.debug("Empty or invalid address provided.")
+        if not silent :logger.debug("Empty or invalid address provided.")
         return None
 
     key = label
 
     if key in cache:
         lon, lat = cache[key]["lon"], cache[key]["lat"]
-        logger.debug("Geocode cache hit for address: %s", address)
+        if not silent : logger.debug("Geocode cache hit for address: %s", address)
         return {"lon": lon, "lat": lat, "status" : status}  # return simple dict
 
     for attempt in range(retries):
@@ -127,24 +127,25 @@ def geocode_address(address, label, status, cache, retries=2, delay=1.0):
                 lon, lat = location.longitude, location.latitude
                 cache[key] = {"lon": lon, "lat": lat, "status" : status}  # add new entry
                 _save_geocode_cache(cache)            # save full dict
-                logger.info("Geocoded address '%s' -> (%s, %s)", address, lat, lon)
+                if not silent : logger.info("Geocoded address '%s' -> (%s, %s)", address, lat, lon)
                 time.sleep(1.1)
                 return {"lon": lon, "lat": lat, "status": status}
             else:
-                logger.info("Address not found: %s", address)
+                if not silent : logger.info("Address not found: %s", address)
                 return None
         except (GeocoderTimedOut, GeocoderUnavailable) as e:
-            logger.warning("Geocode attempt %d/%d failed for %s: %s", attempt + 1, retries, address, e)
+            if not silent : logger.warning("Geocode attempt %d/%d failed for %s: %s", attempt + 1, retries, address, e)
             time.sleep(delay * (2 ** attempt))
-    logger.error("Failed to geocode after %d attempts: %s", retries, address)
+    if not silent : logger.error("Failed to geocode after %d attempts: %s", retries, address)
     return None
 
-def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: bool = False) -> Path:
+def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: bool = False, silent: bool = True) -> Path:
     """
     Create (or return cached) HTML map for the given address/ID.
     - clean_address: address string to geocode
     - ID: unique identifier used to name the cached HTML file
     - force_refresh: if True, recreates the map even if a cached file exists
+    - silent : if set to false, error messages will be logged
     Returns the Path to the saved HTML file.
     """
     # sanitize ID for filename
@@ -155,7 +156,7 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
     png_path = out_path.with_suffix(".png")
 
     if html_path.exists() and png_path.exists() and not force_refresh:
-        logger.info("Using cached map: %s", html_path)
+        if not silent : logger.info("Using cached map: %s", html_path)
         return out_path
 
     shapefile_path = BASE_DIR / "resources" / "shapeData" / "PaMunicipalities2025_07.shp"
@@ -166,7 +167,7 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
     municipalities = gpd.read_file(shapefile_path, engine='pyogrio')
     municipalities = municipalities.to_crs(epsg=4326)
     if 'COUNTY_NAM' not in municipalities.columns:
-        logger.warning("Expected 'COUNTY_NAM' in shapefile; skipping county filter.")
+        if not silent : logger.warning("Expected 'COUNTY_NAM' in shapefile; skipping county filter.")
     else:
         municipalities = municipalities[municipalities['COUNTY_NAM'].str.upper() == 'JEFFERSON']
 
@@ -215,17 +216,17 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
     # save the folium map to cachedMaps
     try:
         folium_map.save(str(out_path.with_suffix(".html")))
-        logger.info("Saved map to: %s", out_path)
+        if not silent : logger.info("Saved map to: %s", out_path)
         # Screenshot to PNG
         html_to_png(html_path = out_path.with_suffix(".html"), png_path = out_path.with_suffix(".png"))
 
     except Exception as e:
-        logger.exception("Failed to save map to %s: %s", out_path, e)
+        if not silent : logger.exception("Failed to save map to %s: %s", out_path, e)
         raise
 
     return out_path
 
-def generate_full_map(geocode_cache):
+def generate_full_map(geocode_cache, silent = True):
     """
     Creates a map with all addresses in the geocode_cache dict
     """
@@ -296,7 +297,7 @@ def generate_full_map(geocode_cache):
     # Save HTML
     html_path = out_path.with_suffix(".html")
     folium_map.save(str(html_path))
-    logger.info("Saved map to: %s", html_path)
+    if not silent : logger.info("Saved map to: %s", html_path)
 
     # --- Generate PNG screenshot using  ---
     html_to_png(html_path = out_path.with_suffix(".html"), png_path = out_path.with_suffix(".png"))
