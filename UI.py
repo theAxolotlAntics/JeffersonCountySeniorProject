@@ -248,7 +248,7 @@ for col in date_cols:
 #APPLICATION
 #-----------------------------------------------------------------------------------------------------------------
 
-Title = "Blight Inventory"
+Title = "Jefferson County Property Viewer"
 
 # columns wanted on the main page
 #StreeNum and Address are seperated for ease of filtering
