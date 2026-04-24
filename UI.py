@@ -294,6 +294,7 @@ class App(tk.Tk):
         self.title(Title)
         self.geometry("1100x600")
         self.minsize(900, 520) #min size of the main window
+        self.open_windows = []
 
         #dataset
         self.df = Originaldf.copy()
@@ -433,6 +434,32 @@ class App(tk.Tk):
         ttk.Button(btns, text="Reset", command=lambda: [self.font_size.set(self.base_font_size), on_slide(self.base_font_size)]).pack(side="left", padx=5)
         ttk.Button(btns, text="Close", command=top.destroy).pack(side="left", padx=5)
 
+    def ApplyThemeToWindow(self, widget):
+        if self.dark_mode.get():
+            bg = "#2b2b2b"
+            fg = "#ffffff"
+        else:
+            bg = "#f0f0f0"
+            fg = "#000000"
+
+        try:
+            widget.configure(bg=bg)
+        except:
+            pass
+
+        for child in widget.winfo_children():
+            try:
+                # tk widgets
+                if isinstance(child, (tk.Frame, tk.Label, tk.Canvas)):
+                    child.configure(bg=bg)
+
+                if isinstance(child, tk.Label):
+                    child.configure(fg=fg)
+
+            except:
+                pass
+            self.ApplyThemeToWindow(child)
+    
     #theme handling
     def ShowThemesMenu(self):
 
@@ -541,6 +568,13 @@ class App(tk.Tk):
 
         if hasattr(self, "tree"):
             self.FitColumns()
+        # Update all open popup windows
+        for win in getattr(self, "open_windows", []):
+            try:
+                self.ApplyThemeToWindow(win)
+                win.update_idletasks()
+            except:
+                pass
 
 
       # Toolbar
@@ -709,31 +743,58 @@ class App(tk.Tk):
 
     #create a new csv with the 
     def NewCSV(self):
-        global CSV_PATH
-        # Let the user choose a CSV file first
-        user_path = choose_csv_path()
-        if user_path:
-            CSV_PATH = user_path
-        
-        # Ask user where to save the new file
-        new_csv = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv")],
-            title="New CSV"
-        )
+            global CSV_PATH
+    
+            info_win = tk.Toplevel(self)
+            info_win.title("Important Information")
+            info_win.geometry("420x220")
+            info_win.resizable(False, False)
+            info_win.grab_set()  
 
-        if not new_csv:  # user cancelled
-            return
+            msg = (
+                "This creates a new empty file with the same headers as a file of your choice.\n\n"
+                "1. Select the current CSV file you would like to have the same headers as and press Open.\n"
+                "2. Name your new file and press Save."
+            )
 
-        # Read headers from source file
-        with open(CSV_PATH, newline='', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            headers = next(reader)
+            label = ttk.Label(info_win, text=msg, wraplength=380, justify="left")
+            label.pack(padx=15, pady=15)
 
-        # Create a new file with only those headers
-        with open(new_csv, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
+            def continue_action():
+                info_win.destroy()
+                proceed_new_csv()  
+
+            ttk.Button(info_win, text="Okay", command=continue_action).pack(pady=10)
+            def proceed_new_csv():
+                # Let the user choose a CSV file first
+                user_path = choose_csv_path()
+                if not user_path:
+                    return
+
+                # Ask user where to save the new file
+                new_csv = filedialog.asksaveasfilename(
+                    defaultextension=".csv",
+                    filetypes=[("CSV files", "*.csv")],
+                    title="New CSV"
+                )
+
+                if not new_csv:
+                    return
+
+                # Read headers from source file
+                with open(user_path, newline='', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    headers = next(reader)
+
+                # Create new file
+                with open(new_csv, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+
+                # --- SUCCESS POPUP ---
+                messagebox.showinfo("Success", "Your new file is now created.")
+
+
 
     def SaveAsCSV(self):
         # Ask user where to save
@@ -1044,6 +1105,8 @@ class App(tk.Tk):
 
         #window header of property address
         win = tk.Toplevel(self)
+        self.open_windows.append(win)
+        self.ApplyThemeToWindow(win)
         win.title(f"Property Address: {row.get('Property Address Number:', '')} {row.get('Property Address Street Name:', '')}")
         fonts = self.CurrentFonts()
         win.geometry(f"{self.ScaleValue(800, 640)}x{self.ScaleValue(600, 480)}")
@@ -1067,6 +1130,12 @@ class App(tk.Tk):
 
         OriginalImages = []
         image_index = 0
+        def on_close():
+            if win in self.open_windows:
+                self.open_windows.remove(win)
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
 
          #function resizes the image, essentially bootstrapping
         def ResizeImage(event=None):
