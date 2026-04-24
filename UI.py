@@ -295,8 +295,15 @@ class App(tk.Tk):
         super().__init__()
         #configure window
         self.title(Title)
-        self.attributes('-topmost',True)   
-        self.geometry("1920x1080")
+        self.geometry("1400x700+0+0")
+        # force to front when opened
+
+        self.lift()
+        self.focus_force()
+        self.attributes("-topmost", True)
+
+        # turn off topmost shortly after opening
+        self.after(200, lambda: self.attributes("-topmost", False))
         self.minsize(900, 520) #min size of the main window
         self.open_windows = []
 
