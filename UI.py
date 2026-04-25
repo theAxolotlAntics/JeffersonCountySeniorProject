@@ -1503,7 +1503,7 @@ class App(tk.Tk):
             top = tk.Toplevel(self)
             top.title("Show / Hide Columns")
             top.attributes('-topmost',True)
-            top.geometry("300x400")
+            top.geometry("600x400")
             top.grab_set()  # modal window
 
             top.rowconfigure(2, weight=1)
