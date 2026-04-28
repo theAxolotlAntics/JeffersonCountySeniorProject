@@ -255,7 +255,7 @@ Title = "Jefferson County Property Viewer"
 VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last", "Date of Property Review:",
                       "Parcel ID, if known:", "Property Address Number:", "Property Address Street Name:",
                       "City:", "Zipcode:", "Municipality:", "Property Blighted?", "Commercial", "Residential", "Vacant Property:", "Submitter's Name:",
-                      "Submitter's Email or Phone Number (this information will be used to collect any critical information or clear up any discrepancies)"]
+                      "Submitter's Information:"]
                       
 
 # columns displayed on selected property page (skip last column if image link etc)
@@ -1589,6 +1589,8 @@ class App(tk.Tk):
         sels = self.tree.selection()
         if not sels:
             messagebox.showwarning("Delete", "No row selected to delete.")
+            self.open_windows.append(messagebox)
+            self.ApplyThemeToWindow(messagebox)
             return
 
         # ask for confirmation
@@ -1801,7 +1803,7 @@ class App(tk.Tk):
                     missing.append(field)
 
             if missing:
-                messagebox.showerror("Missing Required Fields","Please fill in the following required fields:\n\n" + "\n".join(missing))
+                messagebox.showerror("Missing Required Fields","Please fill in the following required fields:\n\n" + "\n".join(missing), parent = new_win)
                 return
 
             zip_field = "Zipcode:"
@@ -1837,7 +1839,7 @@ class App(tk.Tk):
             iid = self.tree.insert("", "end", values=vals, tags=(str(idx),))
             self._row_ids[idx] = iid
 
-            messagebox.showinfo("Saved", "New property added.")
+            messagebox.showinfo("Saved", "New property added.",parent = new_win)
             new_win.destroy()
 
             #function to close without saving
@@ -2013,7 +2015,7 @@ class App(tk.Tk):
             if missing:
                 messagebox.showerror(
                     "Missing Required Fields",
-                    "Please fill in the following required fields:\n\n" + "\n".join(missing)
+                    "Please fill in the following required fields:\n\n" + "\n".join(missing), parent = edit_win
                 )
                 return
 
@@ -2021,14 +2023,14 @@ class App(tk.Tk):
             zip_value = controls[zip_field][1].get().strip()
 
             if not zip_value:
-                messagebox.showerror("Missing ZIP Code", "ZIP Code is required.")
+                messagebox.showerror("Missing ZIP Code", "ZIP Code is required.",parent = edit_win)
                 return
 
             if zip_value not in JEFFERSON_ZIPS:
                 messagebox.showerror(
                     "Invalid ZIP Code",
                     "ZIP Code must be in Jefferson County, PA.\n\n"
-                    f"Invalid value: {zip_value}"
+                    f"Invalid value: {zip_value}",parent = edit_win
                 )
                 return
 
@@ -2079,7 +2081,7 @@ class App(tk.Tk):
                     vals = [("" if pd.isna(v) else str(v)) for v in vals]
                     self.tree.item(iid, values=vals)
 
-                messagebox.showinfo("Saved", "Property updated.")
+                messagebox.showinfo("Saved", "Property updated.",parent = edit_win)
                 edit_win.destroy()
 
             except Exception as e:
@@ -2098,7 +2100,7 @@ class App(tk.Tk):
             row = self.df.loc[idx]
         except Exception as e:
             #if can't find row, abore and tell user
-            messagebox.showerror("Note error", f"Unable to find row {idx}: {e}")
+            messagebox.showerror("Note error", f"Unable to find row {idx}: {e}", parent = new_win )
             return
 
         #build small window for user to type note in
@@ -2121,7 +2123,7 @@ class App(tk.Tk):
         def OnAdd():
             s = txt.get("1.0", "end").strip()
             if not s:
-                messagebox.showwarning("Empty", "Note is empty.")
+                messagebox.showwarning("Empty", "Note is empty.", parent = new_win)
                 return
 
             #add timestamp before contents of note
@@ -2157,7 +2159,7 @@ class App(tk.Tk):
                     pass
 
             #notify user and close dialog
-            messagebox.showinfo("Note added", "Note appended and saved.")
+            messagebox.showinfo("Note added", "Note appended and saved.", parent = note_win)
             try:
                 note_win.grab_release()
             except Exception:
