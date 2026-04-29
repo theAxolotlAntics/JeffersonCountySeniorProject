@@ -204,17 +204,37 @@ CSV_PATH = "Blight Mitigation Data.csv"
 #----------------------------------------------------------------------------------------------------------------------------
 
 def choose_csv_path():
-    #Prompt the user to pick a CSV file. If they cancel, fall back to DummyData.csv.
-    root = tk.Tk()
-    icon = tk.PhotoImage(file=str(BASE_DIR / "resources" / "JC.png"))
-    root.wm_iconphoto(True, icon)
-    root.withdraw()
+    # Check if a root already exists
+    parent = tk._default_root
+    created_temp_root = False
+
+    if parent is None:
+        # No root exists yet — create a temporary one
+        parent = tk.Tk()
+        created_temp_root = True
+
+        # Try to load icon safely
+        try:
+            icon = tk.PhotoImage(file=str(BASE_DIR / "resources" / "JC.png"))
+            parent.wm_iconphoto(True, icon)
+        except Exception as e:
+            print("Icon load failed:", e)
+
+        parent.withdraw()
+
+    # Use existing or temporary root as dialog parent
     path = filedialog.askopenfilename(
+        parent=parent,
         title="Select CSV file",
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
     )
-    root.destroy()
+
+    # Only destroy the root if *we* created it
+    if created_temp_root:
+        parent.destroy()
+
     return path
+
 
 # Let the user choose a CSV file first
 user_path = choose_csv_path()
