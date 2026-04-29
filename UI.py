@@ -1,6 +1,6 @@
 # Name: Gannon Kearney, Brunner Good, Isaac Wagner, Alexis Valencia
 # Created: 9/3/25
-# Last Updated: 4/6/26
+# Last Updated: 4/29/26
 # Purpose: Tkinter-based property management system that:
         #loads property data from a CSV
         #Displays it in a Treeview
@@ -190,11 +190,11 @@ def open_calendar(parent,var):
     def select_date():
         selected_date = cal.get_date()
         var.set(selected_date)
-        top.destroy()
+        calendar.destroy()
 
             
 
-    ttk.Button(top, text="Select", command=select_date).pack(pady=5)
+    ttk.Button(calendar, text="Select", command=select_date).pack(pady=5)
 
 #--------------------------------------------------------------------------------------------------------------------------
 
@@ -240,6 +240,8 @@ if not os.path.exists(CSV_PATH):
 
 Originaldf = pd.read_csv(CSV_PATH)
 date_cols = ["Start time", "Completion time", "Date of Property Review"]
+
+
 
 for col in date_cols:
     if col in Originaldf.columns:
@@ -309,6 +311,7 @@ class App(tk.Tk):
 
         #dataset
         self.df = Originaldf.copy()
+        
         
 
         self.mode = tk.StringVar(value="Blight")  # mode toggle "Blight" or "Inventory"
@@ -612,6 +615,7 @@ class App(tk.Tk):
         entry = ttk.Entry(right, textvariable=self.SearchInput, width=max(20, self.ScaleValue(30, 20)))
         entry.pack(side="left", padx=4, pady=2)
         entry.bind("<Return>", self.ApplyFilters)
+        
 
         ttk.Button(right, text="Search", command=self.ApplyFilters).pack(side="left", padx=4, pady=2)
         self.mode_label = ttk.Label(right, text=f"Mode: {self.mode.get()}")
@@ -658,13 +662,13 @@ class App(tk.Tk):
         ttk.Button(self.filter_frame, text="Full Map", command=self.CreateFullMap).grid(row=0, column=7, sticky="ew", padx=pad_x, pady=pad_y)
         ttk.Checkbutton(self.filter_frame, text="Refresh Map", variable=self.map_regen).grid(row=0, column=8, sticky="w", padx=pad_x, pady=pad_y)
 
-        ttk.Label(self.filter_frame, text="From Date").grid(row=1, column=0, sticky="w", padx=pad_x, pady=pad_y)
+        ttk.Label(self.filter_frame, text="From Start Date").grid(row=1, column=0, sticky="w", padx=pad_x, pady=pad_y)
         self.from_date = tk.StringVar()
         ttk.Entry(self.filter_frame, textvariable=self.from_date, width=entry_w).grid(row=1, column=1, sticky="ew", padx=pad_x, pady=pad_y)
         self.calbtn = ttk.Button(self.filter_frame, text="📅", width=3, command=lambda: open_calendar(self.filter_frame, self.from_date))
         self.calbtn.grid(row=1, column=2, padx=pad_x, pady=pad_y)
 
-        ttk.Label(self.filter_frame, text="To Date").grid(row=1, column=3, sticky="w", padx=pad_x, pady=pad_y)
+        ttk.Label(self.filter_frame, text="To Start Date").grid(row=1, column=3, sticky="w", padx=pad_x, pady=pad_y)
         self.to_date = tk.StringVar()
         ttk.Entry(self.filter_frame, textvariable=self.to_date, width=entry_w).grid(row=1, column=4, sticky="ew", padx=pad_x, pady=pad_y)
         self.tobtn = ttk.Button(self.filter_frame, text="📅", width=3, command=lambda: open_calendar(self.filter_frame, self.to_date))
@@ -676,7 +680,7 @@ class App(tk.Tk):
         self.zip = ttk.Combobox(self.filter_frame, textvariable=self.zip_var, values=zip_list, state="readonly", width=combo_w)
         self.zip.grid(row=1, column=7, sticky="ew", padx=pad_x, pady=pad_y)
 
-        ttk.Label(self.filter_frame, text="Modified Date").grid(row=2, column=0, sticky="w", padx=pad_x, pady=pad_y)
+        ttk.Label(self.filter_frame, text="Modified Date (Completion)").grid(row=2, column=0, sticky="w", padx=pad_x, pady=pad_y)
         self.modified_var = tk.StringVar(value="All")
         self.mod_date = tk.StringVar()
         ttk.Entry(self.filter_frame, textvariable=self.mod_date, width=entry_w).grid(row=2, column=1, sticky="ew", padx=pad_x, pady=pad_y)
@@ -951,32 +955,32 @@ class App(tk.Tk):
 
    # Filters processing
     def ApplyFilters(self, event=None):
-        df = Originaldf.copy()
+        df = self.df.copy()
 
         #Blighted Filter
         if self.BlightedFilter.get():
-            df = df[normalize(df["Property Blighted?"]) == "true"]
+            df = df[df["Property Blighted?"]]
 
         #Vacancy Filter
         if self.VacancyFilter.get():
-            df = df[normalize(df["Vacant Property:"]) == "true"]
+            df = df[df["Vacant Property:"]]
 
         #Use Filter
         use = self.use_var.get()
         if use == "Commercial":
-            df = df[normalize(df["Commercial"]) == "true"]
+            df = df[df["Commercial"]]
         elif use == "Residential":
-            df = df[normalize(df["Residential"]) =="true"]
+            df = df[df["Residential"]]
 
         #City Filter
         city = self.city_var.get()
         if city != "All":
-            df = df[normalize(df["City:"]) == city.strip().lower()]
+            df = df[df["City:"] == city]
 
         #Municipality Filter
         muni = self.muni_var.get()
         if muni != "All":
-            df = df[normalize(df["Municipality:"]) == muni.strip().lower()]
+            df = df[df["Municipality:"] == muni]
 
         #Date Range
         if self.from_date.get() or self.to_date.get():
@@ -993,23 +997,12 @@ class App(tk.Tk):
         #Zip Code
         zip_code = self.zip_var.get()
         if zip_code != "All":
-            df = df[normalize(df["Zipcode:"]) == zip_code.strip().lower()]
+            df = df[df["Zipcode:"].astype(str) == zip_code]
 
         #Last Modified Filter
-        modified = self.modified_var.get()
-        if modified != "All":
-            df["Completion time"] = pd.to_datetime(df["Completion time"], errors="coerce")
-            now = datetime.now()
-            cutoff = datetime.now()
-
-            if modified == "Last 24 Hours":
-                cutoff = now - timedelta(days=1)
-            elif modified == "Last 7 Days":
-                cutoff = now - timedelta(days=7)
-            elif modified == "Last 30 Days":
-                cutoff = now - timedelta(days=30)
-
-            df = df[df["Completion time"] >= cutoff]
+        if self.mod_date.get():
+            mod = pd.to_datetime(self.mod_date.get(), errors="coerce")
+            df = df[df["Completion time"] >= mod]
 
         #Search Filter
         search = self.SearchInput.get().lower().strip()
@@ -1021,6 +1014,7 @@ class App(tk.Tk):
 
         # Refresh tree
         self.ShowTree(df)
+
         
 
     def ResetFilters(self):
@@ -1032,7 +1026,6 @@ class App(tk.Tk):
         self.city_var.set("All")
         self.muni_var.set("All")
 
-        self.SearchInput.set("")
 
         self.from_date.set("")
         self.to_date.set("")
