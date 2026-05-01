@@ -98,7 +98,6 @@ def _build_legend_html(status_color_map: dict) -> str:
         )
     return "\n".join(rows)
 
-
 def _add_legend(folium_map: folium.Map, status_color_map: dict) -> None:
     """
     Injects a tidy legend into the bottom-left corner of a folium map.
@@ -136,6 +135,25 @@ def _add_legend(folium_map: folium.Map, status_color_map: dict) -> None:
     macro._template = Template(template_str)
     folium_map.get_root().add_child(macro)
 
+def crop_to_bounds(png_path):
+    from PIL import Image
+
+    img = Image.open(png_path)
+    width, height = img.size
+
+    left = 50
+    top = 200
+    right = width - 50
+    bottom = height - 200
+
+    # Safety check (prevents your crash)
+    if right <= left or bottom <= top:
+        raise ValueError(
+            f"Invalid crop box: {(left, top, right, bottom)} for image size {(width, height)}"
+        )
+
+    cropped = img.crop((left, top, right, bottom))
+    cropped.save(png_path)
 
 # Reuse a single Nominatim instance (respect API usage)
 GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
@@ -161,6 +179,7 @@ def html_to_png(html_path, png_path, width=2400, height=2400):
     cmd = [
         browser,
         "--headless=new",
+        "--force-device-scale-factor=2",
         "--no-sandbox",
         "--disable-gpu-sandbox",
         "--disable-dev-shm-usage",
@@ -364,7 +383,7 @@ def generate_full_map(geocode_cache, silent=True, force_refresh=False):
     pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
 
     # use the custom-built map, so that we don't get rate limited
-    folium_map = folium.Map(tiles=None, min_zoom=8, max_zoom= 16, location=[41.16, -79.06], zoom_start=14)
+    folium_map = folium.Map(tiles=None, min_zoom=8, max_zoom= 16, location=[41.16, -79.06])
     # Prevent map from going outside downloaded tile area
     folium_map.fit_bounds([
         [40.90, -79.55],   # southwest corner
@@ -406,12 +425,15 @@ def generate_full_map(geocode_cache, silent=True, force_refresh=False):
 
     # --- Add legend ---
     _add_legend(folium_map, status_colors)
+    # Force a fixed zoom level AFTER all layers are added
+    folium_map.zoom_start = 12
+    folium_map.location = [41.16, -79.06]
 
     # Save HTML
     folium_map.save(str(html_path))
     if not silent : logger.info("Saved map to: %s", html_path)
 
     # --- Generate PNG screenshot using  ---
-    html_to_png(html_path = out_path.with_suffix(".html"), png_path = out_path.with_suffix(".png"))
-
+    html_to_png(html_path = out_path.with_suffix(".html"), png_path = out_path.with_suffix(".png"), width=1600, height=1200)
+    crop_to_bounds(png_path)
     return out_path
