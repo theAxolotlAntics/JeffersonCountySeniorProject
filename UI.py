@@ -260,6 +260,16 @@ if not os.path.exists(CSV_PATH):
 
 Originaldf = pd.read_csv(CSV_PATH)
 date_cols = ["Start time", "Completion time", "Date of Property Review"]
+# Normalize Property Address Number 
+if "Property Address Number:" in Originaldf.columns:
+    Originaldf["Property Address Number:"] = (
+        Originaldf["Property Address Number:"]
+        .astype(str)
+        .str.strip()
+        .str.replace(r"\.0$", "", regex=True)   # remove trailing .0
+        .str.replace(r"[^\d]", "", regex=True)  # keep only digits
+        .replace("nan", "")                     # clean up pandas NaN-as-string
+    )
 
 
 
@@ -710,25 +720,40 @@ class App(tk.Tk):
 
     # This fuction will create a map with all the adresses in the dataframe
     def CreateFullMap(self):
-        MAP_HTML = CACHE_DIR / "full_Map.html"
+        """Generate the full map and display it with a legend in a Tkinter window."""
+        from MapModule import status_colors
+
+        MAP_HTML = CACHE_DIR / "Full_Map.html"
 
         # Load cache
         cache = _load_geocode_cache()
 
+        # If user requested refresh, clear ALL cached geocodes + map files
+        if self.map_regen.get():
+            cache.clear()
+            try:
+                (CACHE_DIR / "geocode_cache.json").unlink()
+            except FileNotFoundError:
+                pass
+            for ext in (".html", ".png"):
+                try:
+                    (CACHE_DIR / "Full_Map").with_suffix(ext).unlink()
+                except FileNotFoundError:
+                    pass
+            _save_geocode_cache(cache)
+
+        # --- Build cache entries for all rows ---
         for index, row in self.df.iterrows():
 
-            # primary address + map_id
             address_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
 
-            # fallback addresses
             address_street = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id_street = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
 
             address_city = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
             map_id_city = f"Property in {row.get('City:','')}"
 
-            # status flags
             status_flags = []
             if validate(row.get("Vacant Property:", "")): status_flags.append("Vacant")
             if validate(row.get("Property Blighted?", "")): status_flags.append("Blighted")
@@ -736,46 +761,71 @@ class App(tk.Tk):
             if validate(row.get("Commercial", "")): status_flags.append("Commercial")
             status = " ".join(status_flags) if status_flags else None
 
-            # --- CACHE CHECKS ---
-            if map_id_full in cache:
-                coords = cache[map_id_full]
-            elif map_id_street in cache:
-                coords = cache[map_id_street]
-            elif map_id_city in cache:
-                coords = cache[map_id_city]
+            # Try full → street → city
+            coords = geocode_address(address_full, map_id_full, status, cache)
+            if coords:
+                cache[map_id_full] = coords
             else:
-                # --- GEOCODE ONLY IF NOT IN CACHE ---
-                coords = (
-                    geocode_address(address_full, label=map_id_full, status=status, cache=cache)
-                    or geocode_address(address_street, label=map_id_street, status=status, cache=cache)
-                    or geocode_address(address_city, label=map_id_city, status=status, cache=cache)
-                )
-
-                # Save whichever succeeded
+                coords = geocode_address(address_street, map_id_street, status, cache)
                 if coords:
-                    cache[coords["label"]] = coords
+                    cache[map_id_street] = coords
+                else:
+                    coords = geocode_address(address_city, map_id_city, status, cache)
+                    if coords:
+                        cache[map_id_city] = coords
 
-        # Save updated cache
         _save_geocode_cache(cache)
 
         # Generate map
-        out_path = generate_full_map(cache)
+        out_path = generate_full_map(cache, force_refresh=self.map_regen.get())
         png_path = out_path.with_suffix(".png")
 
-        # Show in Tkinter window
-        new_win = tk.Toplevel(self)
-        new_win.title("Full Map of All Properties")
+        # --- Build Tkinter window ---
+        win = tk.Toplevel(self)
+        win.title("Full Map with Legend")
+        win.geometry("1500x900")
+        win.lift()
+        win.focus_force()
+        self.open_windows.append(win)
 
+        # Grid layout
+        win.grid_columnconfigure(0, weight=1)  # map expands
+        win.grid_rowconfigure(0, weight=1)
+
+        # --- LEFT SIDE (map + warning) ---
+        left_frame = ttk.Frame(win, padding=10)
+        left_frame.grid(row=0, column=0, sticky="nsew")
+
+        warning = ttk.Label(
+            left_frame,
+            text="Click the map to open the interactive HTML version.\n"
+                "Use your browser for zooming, panning, and selecting pins."
+        )
+        warning.pack(pady=(0, 10))
+
+        # Canvas for resizable map
+        canvas = tk.Canvas(left_frame, highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+
+        # Load image
         img = Image.open(png_path)
-        photo = ImageTk.PhotoImage(img)
-        label = tk.Label(new_win, image=photo)
-        label.image = photo
-        label.pack(padx=20, pady=20)
+        tk_img = ImageTk.PhotoImage(img)
+        map_item = canvas.create_image(0, 0, anchor="nw", image=tk_img)
 
+        # Resize handler
+        def resize_map(event):
+            resized = img.resize((event.width, event.height), Image.LANCZOS)
+            new_img = ImageTk.PhotoImage(resized)
+            canvas.image = new_img
+            canvas.itemconfig(map_item, image=new_img)
+
+        canvas.bind("<Configure>", resize_map)
+
+        # Click to open browser
         def open_in_browser(event=None):
             webbrowser.open(MAP_HTML.as_uri())
 
-        label.bind("<Button-1>", open_in_browser)
+        canvas.bind("<Button-1>", open_in_browser)
 
 
     #create a new csv with the 

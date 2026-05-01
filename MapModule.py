@@ -15,6 +15,8 @@ import re
 import subprocess
 import sys
 
+from branca.element import Template, MacroElement
+
 
 #@author:  Brunner Good
 
@@ -27,6 +29,10 @@ BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 GEOCODE_CACHE_FILE = CACHE_DIR / "geocode_cache.json"
+MIN_LAT = 40.90
+MAX_LAT = 41.37
+MIN_LON = -79.55
+MAX_LON = -78.55
 
 # List of status and their correlated colors
 status_colors = {
@@ -51,6 +57,86 @@ status_colors = {
     "Blighted Residential Commercial": "darkpurple",  
 }
 
+# Maps folium icon color names -> CSS hex colors that closely match the actual marker icons
+FOLIUM_CSS_COLORS = {
+    "lightred":   "#FF8080",
+    "lightblue":  "#80B3FF",
+    "lightgreen": "#80D480",
+    "darkred":    "#8B0000",
+    "darkblue":   "#003DA6",
+    "purple":     "#9C2BCB",
+    "darkpurple": "#5B2A8A",
+    "red":        "#D63E2A",
+    "blue":       "#2A81CB",
+    "green":      "#2AAD27",
+    "black":      "#3D3D3D",
+    "beige":      "#FFCB92",
+}
+
+
+def _build_legend_html(status_color_map: dict) -> str:
+    """
+    Builds the inner HTML for the legend rows.
+    Deduplicates entries that share the same (label, color) pair so the
+    legend stays compact when multiple statuses map to one color.
+    """
+    seen = set()
+    rows = []
+    for label, folium_color in status_color_map.items():
+        css_color = FOLIUM_CSS_COLORS.get(folium_color, "#555555")
+        key = (label, css_color)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            f'<div style="display:flex; align-items:center; margin-bottom:5px;">'
+            f'  <span style="display:inline-block; width:14px; height:14px; border-radius:50%;'
+            f'         background:{css_color}; border:1px solid rgba(0,0,0,0.3);'
+            f'         flex-shrink:0; margin-right:8px;"></span>'
+            f'  <span>{label}</span>'
+            f'</div>'
+        )
+    return "\n".join(rows)
+
+
+def _add_legend(folium_map: folium.Map, status_color_map: dict) -> None:
+    """
+    Injects a tidy legend into the bottom-left corner of a folium map.
+    Uses MacroElement so it survives folium's HTML rendering pipeline.
+    """
+    rows_html = _build_legend_html(status_color_map)
+
+    template_str = """
+    {{% macro html(this, kwargs) %}}
+    <div id="map-legend" style="
+        position: fixed;
+        bottom: 30px;
+        left: 30px;
+        z-index: 9999;
+        background: rgba(255, 255, 255, 0.93);
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid #aaa;
+        box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+        font-size: 13px;
+        font-family: Arial, sans-serif;
+        max-height: 80vh;
+        overflow-y: auto;
+        line-height: 1.4;
+    ">
+        <div style="font-weight:bold; margin-bottom:8px; border-bottom:1px solid #ccc; padding-bottom:4px;">
+            Property Status
+        </div>
+        {rows}
+    </div>
+    {{% endmacro %}}
+    """.format(rows=rows_html)
+
+    macro = MacroElement()
+    macro._template = Template(template_str)
+    folium_map.get_root().add_child(macro)
+
+
 # Reuse a single Nominatim instance (respect API usage)
 GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
 
@@ -66,7 +152,7 @@ def get_chromium_path():
         return str(chromium)
     raise FileNotFoundError("Bundled Chromium not found.")
 
-def html_to_png(html_path, png_path, width=900, height=900):
+def html_to_png(html_path, png_path, width=2400, height=2400):
     browser = get_chromium_path()
 
     html_path = Path(html_path).resolve()
@@ -185,6 +271,15 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
             min_zoom=8,
             max_zoom=16
         )
+        folium_map.fit_bounds([
+            [MIN_LAT, MIN_LON],
+            [MAX_LAT, MAX_LON]
+        ])
+        folium_map.options['maxBounds'] = [
+            [MIN_LAT, MIN_LON],
+            [MAX_LAT, MAX_LON]
+        ]
+
         folium.TileLayer(
                     tiles="file://" + str((BASE_DIR / "resources" / "tiles" / "{z}" / "{x}" / "{y}.png").resolve()),
                     attr="© OpenStreetMap contributors",
@@ -226,12 +321,18 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
 
     return out_path
 
-def generate_full_map(geocode_cache, silent = True):
+def generate_full_map(geocode_cache, silent=True, force_refresh=False):
     """
     Creates a map with all addresses in the geocode_cache dict
     """
     filename = "Full_Map"
     out_path = CACHE_DIR / filename
+    html_path = out_path.with_suffix(".html")
+    png_path = out_path.with_suffix(".png")
+    # Skip regeneration unless forced
+    if html_path.exists() and png_path.exists() and not force_refresh:
+        return out_path
+
     shapefile_path = BASE_DIR / "resources" / "shapeData" / "PaMunicipalities2025_07.shp"
     if not shapefile_path.exists():
         raise FileNotFoundError(f"Shapefile not found: {shapefile_path}")
@@ -263,7 +364,16 @@ def generate_full_map(geocode_cache, silent = True):
     pins_gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
 
     # use the custom-built map, so that we don't get rate limited
-    folium_map = folium.Map(tiles=None, min_zoom=8, max_zoom= 16, location=[41.16, -79.06], zoom_start=10)
+    folium_map = folium.Map(tiles=None, min_zoom=8, max_zoom= 16, location=[41.16, -79.06], zoom_start=14)
+    # Prevent map from going outside downloaded tile area
+    folium_map.fit_bounds([
+        [40.90, -79.55],   # southwest corner
+        [41.37, -78.55]    # northeast corner
+    ])
+    folium_map.options['maxBounds'] = [
+        [40.90, -79.55],
+        [41.37, -78.55]
+    ]
     folium.TileLayer(
                 tiles="file://" + str((BASE_DIR / "resources" / "tiles" / "{z}" / "{x}" / "{y}.png").resolve()),
                 attr="© OpenStreetMap contributors",
@@ -294,8 +404,10 @@ def generate_full_map(geocode_cache, silent = True):
         )
         marker.add_to(folium_map)
 
+    # --- Add legend ---
+    _add_legend(folium_map, status_colors)
+
     # Save HTML
-    html_path = out_path.with_suffix(".html")
     folium_map.save(str(html_path))
     if not silent : logger.info("Saved map to: %s", html_path)
 
