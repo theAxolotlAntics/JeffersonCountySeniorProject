@@ -285,20 +285,12 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
         
         folium_map = folium.Map(
             location=[lat, lon],
-            zoom_start=15,
+            zoom_start=14,
             tiles=None,
             min_zoom=8,
             max_zoom=16
         )
-        folium_map.fit_bounds([
-            [MIN_LAT, MIN_LON],
-            [MAX_LAT, MAX_LON]
-        ])
-        folium_map.options['maxBounds'] = [
-            [MIN_LAT, MIN_LON],
-            [MAX_LAT, MAX_LON]
-        ]
-
+        
         folium.TileLayer(
                     tiles="file://" + str((BASE_DIR / "resources" / "tiles" / "{z}" / "{x}" / "{y}.png").resolve()),
                     attr="© OpenStreetMap contributors",

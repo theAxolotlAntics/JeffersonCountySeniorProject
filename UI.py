@@ -737,17 +737,17 @@ class App(tk.Tk):
         # --- Build cache entries for all rows ---
         for index, row in self.df.iterrows():
 
-            address_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-            map_id_full = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            address_full = f"{row.get('Property Address Number','')} {row.get('Property Address Street Name','')}, {row.get('City','')} PA, {row.get('Zipcode','')}, USA"
+            map_id_full = f"{row.get('Property Address Number','')} {row.get('Property Address Street Name','')}, {row.get('City','')}"
 
-            address_street = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-            map_id_street = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}"
+            address_street = f"{row.get('Property Address Street Name','')}, {row.get('City','')} PA, {row.get('Zipcode','')}, USA"
+            map_id_street = f"Property on {row.get('Property Address Street Name','')}, {row.get('City','')}"
 
-            address_city = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA"
-            map_id_city = f"Property in {row.get('City:','')}"
+            address_city = f"{row.get('City','')} PA, {row.get('Zipcode','')}, USA"
+            map_id_city = f"Property in {row.get('City','')}"
 
             status_flags = []
-            if validate(row.get("Vacant Property:", "")): status_flags.append("Vacant")
+            if validate(row.get("Vacant Property", "")): status_flags.append("Vacant")
             if validate(row.get("Property Blighted?", "")): status_flags.append("Blighted")
             if validate(row.get("Residential", "")): status_flags.append("Residential")
             if validate(row.get("Commercial", "")): status_flags.append("Commercial")
@@ -1482,13 +1482,13 @@ class App(tk.Tk):
         # generate map html and png paths if none exist
 
         # use the address to build an ID that makes sense
-        map_id = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
+        map_id = f"{row.get('Property Address Number','')} {row.get('Property Address Street Name','')}, {row.get('City','')}".strip()
         # generate a valid address for the property
-        map_address = f"{row.get('Property Address Number:','')} {row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
+        map_address = f"{row.get('Property Address Number','')} {row.get('Property Address Street Name','')}, {row.get('City','')} PA, {row.get('Zipcode','')}, USA".strip()
         # create list of status flags for possible status and combination support
         status_flags = []
 
-        if validate(row.get("Vacant Property:", "")):
+        if validate(row.get("Vacant Property", "")):
                 status_flags.append("Vacant")
 
         if validate(row.get("Property Blighted?", "")):
@@ -1505,13 +1505,13 @@ class App(tk.Tk):
         # create the map, so that the status effects the pin color
         test = geocode_address(map_address, label=map_id, status=status, cache=cache) 
         if not test:
-                map_address = f"{row.get('Property Address Street Name:','')}, {row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
-                map_id = f"Property on {row.get('Property Address Street Name:','')}, {row.get('City:','')}".strip()
+                map_address = f"{row.get('Property Address Street Name','')}, {row.get('City','')} PA, {row.get('Zipcode','')}, USA".strip()
+                map_id = f"Property on {row.get('Property Address Street Name','')}, {row.get('City','')}".strip()
                 test = geocode_address(map_address, label=map_id, status=status, cache=cache)
 
                 if not test:
-                    map_address = f"{row.get('City:','')} PA, {row.get('Zipcode:','')}, USA".strip()
-                    map_id = f"Property in {row.get('City:','')}".strip()
+                    map_address = f"{row.get('City','')} PA, {row.get('Zipcode','')}, USA".strip()
+                    map_id = f"Property in {row.get('City','')}".strip()
                     
         out = create_map(map_address, ID=str(map_id), cache=cache, status=status, force_refresh= self.map_regen.get()) 
         MAP_HTML = out.with_suffix(".html")
