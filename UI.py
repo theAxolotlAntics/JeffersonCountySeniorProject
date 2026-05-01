@@ -775,7 +775,7 @@ class App(tk.Tk):
         # --- Build Tkinter window ---
         win = tk.Toplevel(self)
         win.title("Full Map with Legend")
-        win.geometry("1500x900")
+        win.geometry("900x600")
         win.lift()
         win.focus_force()
         self.open_windows.append(win)
