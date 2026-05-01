@@ -260,16 +260,6 @@ if not os.path.exists(CSV_PATH):
 
 Originaldf = pd.read_csv(CSV_PATH)
 date_cols = ["Start time", "Completion time", "Date of Property Review"]
-# Normalize Property Address Number 
-if "Property Address Number:" in Originaldf.columns:
-    Originaldf["Property Address Number:"] = (
-        Originaldf["Property Address Number:"]
-        .astype(str)
-        .str.strip()
-        .str.replace(r"\.0$", "", regex=True)   # remove trailing .0
-        .str.replace(r"[^\d]", "", regex=True)  # keep only digits
-        .replace("nan", "")                     # clean up pandas NaN-as-string
-    )
 
 
 
@@ -284,21 +274,21 @@ Title = "Jefferson County Property Viewer"
 
 # columns wanted on the main page
 #StreeNum and Address are seperated for ease of filtering
-VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last", "Date of Property Review:",
-                      "Parcel ID, if known:", "Property Address Number:", "Property Address Street Name:",
-                      "City:", "Zipcode:", "Municipality:", "Property Blighted?", "Commercial", "Residential", "Vacant Property:", "Submitter's Name:",
-                      "Submitter's Information:"]
+VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last", "Date of Property Review",
+                      "Parcel ID, if known", "Property Address Number", "Property Address Street Name",
+                      "City", "Zipcode", "Municipality", "Property Blighted?", "Commercial", "Residential", "Vacant Property", "Submitter's Name",
+                      "Submitter's Information"]
                       
 
 # columns displayed on selected property page (skip last column if image link etc)
 hidden_columns = [col for col in Originaldf.columns[:-1] if col not in VisibleColumns]
 
 # Citys and Municipalitys in Jefferson County
-Citys = ["Big Run", "Brockway", "Brookville", "Corsica", "Falls Creek", "Punxsutawney",
-            "Reynoldsville", "Summerville", "Sykesville", "Timblin", "Worthville"]
 Municipalitys = ["Barnett", "Beaver", "Bell", "Clover", "Eldred", "Gaskill", "Heath", "Henderson",
              "Knox", "McCalmont", "Oliver", "Perry", "Pine Creek", "Polk", "Porter", "Ringgold",
-             "Rose", "Snyder", "Union", "Warsaw", "Washington", "Winslow", "Young"]
+             "Rose", "Snyder", "Union", "Warsaw", "Washington", "Winslow", "Young","Big Run", "Brockway", "Brookville", "Corsica", "Falls Creek", "Punxsutawney",
+            "Reynoldsville", "Summerville", "Sykesville", "Timblin", "Worthville"]
+
 
 Uses = ["Commercial","Residential"]
 
@@ -347,7 +337,9 @@ class App(tk.Tk):
         self.mode = tk.StringVar(value="Blight")  # mode toggle "Blight" or "Inventory"
         
         self.all_columns = list(self.df.columns) #all available columns in dataset
+        
         self.visible_columns= [col for col in VisibleColumns if col in self.all_columns]
+        
 
         if not self.visible_columns: #fallback if no visible columns match
             self.visible_columns=self.all_columns.copy()
@@ -675,12 +667,12 @@ class App(tk.Tk):
         self.use = ttk.Combobox(self.filter_frame, textvariable=self.use_var, values=["Both", "Commercial", "Residential"], state="readonly", width=combo_w)
         self.use.grid(row=0, column=2, sticky="ew", padx=pad_x, pady=pad_y)
 
-        city_list = ["All"] + sorted(self.df["City:"].dropna().astype(str).str.strip().unique().tolist())
+        city_list = ["All"] + sorted(self.df["City"].dropna().astype(str).str.strip().unique().tolist())
         self.city_var = tk.StringVar(value="All")
         self.City = ttk.Combobox(self.filter_frame, textvariable=self.city_var, values=city_list, state="readonly", width=combo_w)
         self.City.grid(row=0, column=3, sticky="ew", padx=pad_x, pady=pad_y)
 
-        muni_list = ["All"] + sorted(self.df["Municipality:"].dropna().astype(str).str.strip().unique().tolist())
+        muni_list = ["All"] + sorted(self.df["Municipality"].dropna().astype(str).str.strip().unique().tolist())
         self.muni_var = tk.StringVar(value="All")
         self.Municipality = ttk.Combobox(self.filter_frame, textvariable=self.muni_var, values=muni_list, state="readonly", width=combo_w)
         self.Municipality.grid(row=0, column=4, sticky="ew", padx=pad_x, pady=pad_y)
@@ -705,7 +697,7 @@ class App(tk.Tk):
         self.tobtn.grid(row=1, column=5, padx=pad_x, pady=pad_y)
 
         ttk.Label(self.filter_frame, text="ZipCode").grid(row=1, column=6, sticky="w", padx=pad_x, pady=pad_y)
-        zip_list = ["All"] + sorted(self.df["Zipcode:"].dropna().astype(str).unique().tolist())
+        zip_list = ["All"] + sorted(self.df["Zipcode"].dropna().astype(str).unique().tolist())
         self.zip_var = tk.StringVar(value="All")
         self.zip = ttk.Combobox(self.filter_frame, textvariable=self.zip_var, values=zip_list, state="readonly", width=combo_w)
         self.zip.grid(row=1, column=7, sticky="ew", padx=pad_x, pady=pad_y)
@@ -826,6 +818,8 @@ class App(tk.Tk):
             webbrowser.open(MAP_HTML.as_uri())
 
         canvas.bind("<Button-1>", open_in_browser)
+
+
 
 
     #create a new csv with the 
@@ -984,13 +978,13 @@ class App(tk.Tk):
 
             items = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
 
-            def tryNum(x):
+            def sort_key(x):
                 try:
-                    return float(x)
+                    return (0, float(x))  # numbers come first
                 except:
-                    return x
+                    return (1, str(x).lower())  # strings come after
 
-            items.sort(key=lambda t: tryNum(t[0]), reverse=self.sort[col])
+            items.sort(key=lambda t: sort_key(t[0]), reverse=self.sort[col])
 
             for index, (_, k) in enumerate(items):
                 self.tree.move(k, "", index)
@@ -1761,20 +1755,17 @@ class App(tk.Tk):
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
                 typ = "str"
 
-            # City
-            elif col == "City:":
-                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=Citys, state="readonly")
 
             # Municipality
-            elif col == "Municipality:":
-                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=Municipalitys, state="readonly")
+            elif col == "Municipality":
+                widget = ttk.Combobox(ScrollFrame, textvariable=var, values=sorted(Municipalitys), state="readonly")
 
             # Favorited
             elif col == "Favorited":
                 widget = ttk.Combobox(ScrollFrame, textvariable=var, values=["0", "1"], state="readonly")
 
             # Submitter Name
-            elif col == "Submitter's Name:":
+            elif col == "Submitter's Name":
                 widget = ttk.Combobox(ScrollFrame, textvariable=var, values=sub_names, state="readonly")
 
             # Submitter Email/Phone
@@ -1782,7 +1773,7 @@ class App(tk.Tk):
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
 
             # Boolean fields
-            elif col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
+            elif col in ["Commercial", "Residential", "Vacant Property", "Property Blighted?"]:
                 widget = ttk.Combobox(ScrollFrame, textvariable=var, values=["True", "False"], state="readonly")
                 typ = "bool"
 
@@ -1805,16 +1796,16 @@ class App(tk.Tk):
                 typ = "date"
 
             # Zipcode
-            elif col == "Zipcode:":
+            elif col == "Zipcode":
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
 
             # Address number
-            elif col == "Property Address Number:":
+            elif col == "Property Address Number":
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
                 typ = "int"
 
             # Street name
-            elif col == "Property Address Street Name:":
+            elif col == "Property Address Street Name":
                 widget = ttk.Entry(ScrollFrame, textvariable=var, width=50)
 
             # Generic date fields
@@ -1856,7 +1847,7 @@ class App(tk.Tk):
                     new_row[col] = val
                     
             # Required fields
-            required_fields = ["City:","Municipality:","Property Address Number:","Property Address Street Name:"]
+            required_fields = ["City","Municipality","Property Address Number","Property Address Street Name"]
 
             missing = []
 
@@ -1869,18 +1860,18 @@ class App(tk.Tk):
                 messagebox.showerror("Missing Required Fields","Please fill in the following required fields:\n\n" + "\n".join(missing), parent = new_win)
                 return
 
-            zip_field = "Zipcode:"
+            zip_field = "Zipcode"
             zip_value = controls[zip_field][1].get().strip()
 
             if not zip_value:
-                messagebox.showerror("Missing ZIP Code", "ZIP Code is required.")
+                messagebox.showerror("Missing ZIP Code", "ZIP Code is required.", parent=new_win)
                 return
 
             if zip_value not in JEFFERSON_ZIPS:
                 messagebox.showerror(
                     "Invalid ZIP Code",
                     "ZIP Code must be in Jefferson County, PA.\n\n"
-                    f"Invalid value: {zip_value}"
+                    f"Invalid value: {zip_value}", parent=new_win
                 )
                 return    
 
@@ -1989,16 +1980,13 @@ class App(tk.Tk):
             # Default var
             var = tk.StringVar(value=val)
 
-            # CITY
-            if col == "City:":
-                widget = ttk.Combobox(inner, textvariable=var, values=Citys, state="readonly")
 
             # MUNICIPALITY
-            elif col == "Municipality:":
-                widget = ttk.Combobox(inner, textvariable=var, values=Municipalitys, state="readonly")
+            if col == "Municipality":
+                widget = ttk.Combobox(inner, textvariable=var, values=sorted(Municipalitys), state="readonly")
 
             # BOOLEAN
-            elif typ == "bool" or col in ["Commercial", "Residential", "Vacant Property:", "Property Blighted?"]:
+            elif typ == "bool" or col in ["Commercial", "Residential", "Vacant Property", "Property Blighted?"]:
                 widget = ttk.Combobox(inner, textvariable=var, values=["True", "False"], state="readonly")
 
             # FAVORITED
@@ -2006,7 +1994,7 @@ class App(tk.Tk):
                 widget = ttk.Combobox(inner, textvariable=var, values=["0", "1"], state="readonly")
 
             # SUBMITTER NAME
-            elif col == "Submitter's Name:":
+            elif col == "Submitter's Name":
                 widget = ttk.Combobox(inner, textvariable=var, values=sub_names, state="readonly")
 
             # SUBMITTER EMAIL
