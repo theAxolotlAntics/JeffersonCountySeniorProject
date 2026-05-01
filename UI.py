@@ -260,7 +260,23 @@ if not os.path.exists(CSV_PATH):
 
 Originaldf = pd.read_csv(CSV_PATH)
 date_cols = ["Start time", "Completion time", "Date of Property Review"]
+# --- Normalize Property Address Number into clean integers ---
+def normalize_address_number(val):
+    if pd.isna(val):
+        return None
+    s = str(val).strip()
 
+    # Extract leading digits only (handles "12A", "0045", " 89 ", "12-14", etc.)
+    m = re.match(r"^(\d+)", s)
+    if m:
+        return int(m.group(1))
+    return None
+
+if "Property Address Number" in Originaldf.columns:
+    Originaldf["Property Address Number"] = (
+        Originaldf["Property Address Number"]
+        .apply(normalize_address_number)
+    )
 
 
 for col in date_cols:
