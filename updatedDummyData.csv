@@ -1,5 +1,5 @@
-Favorited,ID,Start time,Completion time,Email,First,Last,Date of Property Review:,"Parcel ID, if known:",Property Address Number:,Property Address Street Name:,City:,Zipcode:,Municipality:,Property Blighted?,Commercial,Residential,Vacant Property:,Is the building free-standing or attached?,"Select vacancy indicators that are present, if any:",Select nuisance or danger indicators:,Roof Condition,Gutter condition:,"Chimney cracks: chimney has large open holes, cracks, or is out of plumb:",Soffit and Fascia Condition:,Facade/Exterior Siding Condition:,Siding material:,Window Condition: (grade the WORST window you find on the property):,Porch condition:,Door condition (grade the WORST door you find on the property):,"Foundation has holes, cracks, or is out of plumb:",Plant growth:,Overall condition:,Have there been any formally documented code violations?,Submitter's Name:,Submitter's Information:,ImagePath:,Notes
-0,DG001,3/25/2026,,jane.doe@example.com,Jane,Doe,,PA-JEF-001,1,Allegheny Blvd (Sr 36),Brookville,15825,Brookville Borough,TRUE,TRUE,FALSE,TRUE,Free-standing,None;,Peeling paint;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Minor Maintenance,No,Jane Doe,jane.doe@example.com,"C:\Users\buzzk\OneDrive\Desktop\Headshot.jpg, https://www.shutterstock.com/shutterstock/photos/279291164/display_1500/stock-vector-learn-the-color-pink-things-that-are-pink-color-279291164.jpg ","[buzzk] [2026-04-28 12:46:47] test note
+Favorited,ID,Start time,Completion time,Email,First,Last,Date of Property Review,"Parcel ID, if known",Property Address Number,Property Address Street Name,City,Zipcode,Municipality,Property Blighted?,Commercial,Residential,Vacant Property,Is the building free-standing or attached?,"Select vacancy indicators that are present, if any",Select nuisance or danger indicators,Roof Condition,Gutter condition,"Chimney cracks: chimney has large open holes, cracks, or is out of plumb",Soffit and Fascia Condition,Facade/Exterior Siding Condition,Siding material,Window Condition: (grade the WORST window you find on the property),Porch condition,Door condition (grade the WORST door you find on the property),"Foundation has holes, cracks, or is out of plumb",Plant growth,Overall condition,Have there been any formally documented code violations?,Submitter's Name,Submitter's Information,ImagePath,Notes
+0.0,DG001,2026-03-25,,jane.doe@example.com,Jane,Doe,,PA-JEF-001,1.0,Allegheny Blvd (Sr 36),Brookville,15825,Brookville Borough,True,True,False,True,Free-standing,None;,Peeling paint;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Minor Maintenance,No,Jane Doe,jane.doe@example.com,"C:\Users\buzzk\OneDrive\Desktop\Headshot.jpg, https://www.shutterstock.com/shutterstock/photos/279291164/display_1500/stock-vector-learn-the-color-pink-things-that-are-pink-color-279291164.jpg ","[buzzk] [2026-04-28 12:46:47] test note
 
 [buzzk] [2026-04-28 12:46:42] test note
 
@@ -27,38 +27,39 @@ to seee what happens
 [buzzk] [2026-04-17 09:35:20] testing
 
 [2025-11-19 17:48:32] second note"
-0,DG002,,3/26/2026 0:00,john.smith@example.com,John,Smith,7/18/2023 0:00,PA-JEF-002,549,Route 28,Brookville,15825-7100,Brookville Borough,FALSE,TRUE,TRUE,FALSE,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,John Smith,john.smith@example.com,https://drive.google.com/file/d/12yZgR2Fy63NSn0amXOojKhXRhL4zVV7m/view,[buzzk] [2026-04-24 14:07:18] test
-1,DG003,,,alice.johnson@example.com,Alice,Johnson,7/20/2023 0:00,PA-JEF-003,1028,W Mahoning St,Punxsutawney,15767-1233,Punxsutawney Borough,TRUE,FALSE,TRUE,FALSE,Free-standing,Overgrowth;,Risk of falling building materials;,Wear or damage that appears in need of replacement,,,Some wear,Some wear,Vinyl,Some wear,Some wear,Some wear,Visible cracks,Light weeds,Minor Maintenance,Unknown,Alice Johnson,alice.johnson@example.com,"C:\Users\xxxx\OneDrive\Desktop\example.jpg , https://drive.google.com/file/d/12yZgR2Fy63NSn0amXOojKhXRhL4zVV7m/view?usp=drive_link","[buzzk] [2026-04-24 14:14:34] testing
+0.0,DG002,,2026-03-26 00:00:00,john.smith@example.com,John,Smith,2023-07-18,PA-JEF-002,549.0,Route 28,Brookville,15825-7100,Brookville Borough,False,True,True,False,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,John Smith,john.smith@example.com,https://drive.google.com/file/d/12yZgR2Fy63NSn0amXOojKhXRhL4zVV7m/view,[buzzk] [2026-04-24 14:07:18] test
+1.0,DG003,,,alice.johnson@example.com,Alice,Johnson,2023-07-20,PA-JEF-003,1028.0,W Mahoning St,Punxsutawney,15767-1233,Punxsutawney Borough,True,False,True,False,Free-standing,Overgrowth;,Risk of falling building materials;,Wear or damage that appears in need of replacement,,,Some wear,Some wear,Vinyl,Some wear,Some wear,Some wear,Visible cracks,Light weeds,Minor Maintenance,Unknown,Alice Johnson,alice.johnson@example.com,"C:\Users\xxxx\OneDrive\Desktop\example.jpg , https://drive.google.com/file/d/12yZgR2Fy63NSn0amXOojKhXRhL4zVV7m/view?usp=drive_link","[buzzk] [2026-04-24 14:14:34] testing
 
 [buzzk] [2026-04-24 13:57:24] adding
 
 [buzzk] [2026-04-24 13:29:20] notes"
-0,DG004,,,bob.lee@example.com,Bob,Lee,,PA-JEF-004,213,Hampton Ave,Punxsutawney,15767-2133,Punxsutawney Borough,FALSE,TRUE,FALSE,TRUE,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,Bob Lee,bob.lee@example.com,,"[buzzk] [2026-04-24 13:43:09] b
+0.0,DG004,,,bob.lee@example.com,Bob,Lee,,PA-JEF-004,213.0,Hampton Ave,Punxsutawney,15767-2133,Punxsutawney Borough,False,True,False,True,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,Bob Lee,bob.lee@example.com,,"[buzzk] [2026-04-24 13:43:09] b
 
 [buzzk] [2026-04-24 13:40:42] trying
 
 [buzzk] [2026-04-24 13:29:52] testing note
 
 [2025-11-20 10:28:06] Note"
-1,DG005,,,clara.kim@example.com,Clara,Kim,,PA-JEF-005,270,W. Liberty,Sykesville,15865,Sykesville Borough,TRUE,FALSE,FALSE,FALSE,Free-standing,Uninhabitable;,Broken windows;,Poor,,Yes,Missing pieces,Cracked siding,Wood,Broken,Collapsed,Boarded,Major cracks,Overgrowth,Suitably unsound,Yes,Clara Kim,clara.kim@example.com,,
-0,DG006,,,david.park@example.com,David,Park,7/26/2023 0:00,PA-JEF-006,848,Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,FALSE,TRUE,FALSE,FALSE,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,David Park,david.park@example.com,,[buzzk] [2026-04-24 13:49:19] test
-1,DG007,3/30/2026,7/13/2023 0:00,eva.green@example.com,Eva,Green,7/28/2023 0:00,PA-JEF-007,317,W Main St,Big Run,15715,Big Run Borough,TRUE,TRUE,TRUE,TRUE,Free-standing,Overgrowth;,Broken windows;,Poor,,Yes,Missing pieces,Cracked siding,Wood,Broken,Collapsed,Boarded,Major cracks,Overgrowth,Suitably unsound,Yes,Eva Green,eva.green@example.com,,"[buzzk] [2026-04-24 14:05:21] testing
+1.0,DG005,,,clara.kim@example.com,Clara,Kim,,PA-JEF-005,270.0,W. Liberty,Sykesville,15865,Sykesville Borough,True,False,False,False,Free-standing,Uninhabitable;,Broken windows;,Poor,,Yes,Missing pieces,Cracked siding,Wood,Broken,Collapsed,Boarded,Major cracks,Overgrowth,Suitably unsound,Yes,Clara Kim,clara.kim@example.com,,
+0.0,DG006,,,david.park@example.com,David,Park,2023-07-26,PA-JEF-006,848.0,Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,False,True,False,False,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,David Park,david.park@example.com,,[buzzk] [2026-04-24 13:49:19] test
+1.0,DG007,2026-03-30,2023-07-13 00:00:00,eva.green@example.com,Eva,Green,2023-07-28,PA-JEF-007,317.0,W Main St,Big Run,15715,Big Run Borough,True,True,True,True,Free-standing,Overgrowth;,Broken windows;,Poor,,Yes,Missing pieces,Cracked siding,Wood,Broken,Collapsed,Boarded,Major cracks,Overgrowth,Suitably unsound,Yes,Eva Green,eva.green@example.com,,"[buzzk] [2026-04-24 14:05:21] testing
 
 [2025-11-14 09:51:04] test"
-0,DG008,7/1/2023,7/15/2023 0:00,frank.white@example.com,Frank,White,7/30/2023,PA-JEF-008,12702,Harrison St,Summerville,15864-6336,Summerville Borough,FALSE,TRUE,FALSE,FALSE,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,Frank White,frank.white@example.com,,[2025-11-13 09:56:41] testing
-1,DG009,7/4/2023,7/17/2023 0:00,gina.black@example.com,Gina,Black,8/1/2023,PA-JEF-009,270,W. Liberty,Sykesville,15865,Sykesville Borough,TRUE,FALSE,TRUE,FALSE,Free-standing,Overgrowth;,None;,Wear or damage that appears in need of replacement,,,Some wear,Some wear,Vinyl,Some wear,Some wear,Some wear,Visible cracks,Light weeds,Minor Maintenance,Unknown,Gina Black,gina.black@example.com,,"[buzzk] [2026-04-24 13:33:11] trying
+0.0,DG008,2023-07-01,2023-07-15 00:00:00,frank.white@example.com,Frank,White,,PA-JEF-008,12702.0,Harrison St,Summerville,15864-6336,Summerville Borough,False,True,False,False,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,Frank White,frank.white@example.com,,[2025-11-13 09:56:41] testing
+1.0,DG009,2023-07-04,2023-07-17 00:00:00,gina.black@example.com,Gina,Black,,PA-JEF-009,270.0,W. Liberty,Sykesville,15865,Sykesville Borough,True,False,True,False,Free-standing,Overgrowth;,None;,Wear or damage that appears in need of replacement,,,Some wear,Some wear,Vinyl,Some wear,Some wear,Some wear,Visible cracks,Light weeds,Minor Maintenance,Unknown,Gina Black,gina.black@example.com,,"[buzzk] [2026-04-24 13:33:11] trying
 
 [2025-11-07 14:28:33] test"
-0,DG010,,,hank.brown@example.com,Frank,Brown,8/3/1972,PA-JEF-010,123,Test St,Brockway,15824-1633,Brockway Borough,FALSE,TRUE,FALSE,TRUE,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,Frank Brown,hank.brown@example.com,,"[buzzk] [2026-04-24 13:38:19] testing testing
+0.0,DG010,,,hank.brown@example.com,Frank,Brown,,PA-JEF-010,123.0,Test St,Brockway,15824-1633,Brockway Borough,False,True,False,True,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,Frank Brown,hank.brown@example.com,,"[buzzk] [2026-04-24 13:38:19] testing testing
 
 [2025-11-13 10:19:24] testing note"
-0,11,3/25/2026,3/30/2026 6:37,GannonKearney@example.com,Gannon,Kearney,3/25/2026,,1500,Main St,Brockway,15801,Heath,FALSE,FALSE,FALSE,FALSE,No,No,Yes,Yes,Yes,No,No,No,No,No,No,Yes,Yes,Yes,Fair,No,Other,Other,none,none
-,,3/27/2026,3/30/2026 0:00,,,,,,,,,,,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
-,testing,,,,,,,,,,,,,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,123,ABC St,Brookville,,Clover,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,456,DC st,Brookville,,Clover,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,[buzzk] [2026-04-24 14:07:43] try
-,,,,,,,,,32,AB ST,Brookville,15825,Clover,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,123565,sgawleg,Corsica,,Bell,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,123,AB St,Brookville,15825,Bell,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,456,ABC,Brockway,15824,Eldred,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,[buzzk] [2026-04-24 13:22:40] test
-,,,,,,,,,123,nmst,Corsica,15824,Clover,FALSE,FALSE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,
+0.0,11,2026-03-25,2026-03-30 06:37:00,GannonKearney@example.com,Gannon,Kearney,,,1500.0,Main St,Brockway,15801,Heath,False,False,False,False,No,No,Yes,Yes,Yes,No,No,No,No,No,No,Yes,Yes,Yes,Fair,No,Other,Other,none,none
+,,2026-03-27,2026-03-30 00:00:00,,,,,,,,,,,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,testing,,,,,,,,,,,,,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,123.0,ABC St,Brookville,,Clover,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,456.0,DC st,Brookville,,Clover,False,False,False,False,,,,,,,,,,,,,,,,,,,,[buzzk] [2026-04-24 14:07:43] try
+,,,,,,,,,32.0,AB ST,Brookville,15825,Clover,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,123565.0,sgawleg,Corsica,,Bell,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,123.0,AB St,Brookville,15825,Bell,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,456.0,ABC,Brockway,15824,Eldred,False,False,False,False,,,,,,,,,,,,,,,,,,,,[buzzk] [2026-04-24 13:22:40] test
+,,,,,,,,,123.0,nmst,Corsica,15824,Clover,False,False,False,False,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,123.0,abc st,Brookville,15829,Bell,False,False,False,False,,,,,,,,,,,,,,,,,,,,
