@@ -96,7 +96,11 @@ JEFFERSON_ZIPS = {
     "15847",	#Knox Dale  
     "15784",	#Worthville	
     "15744",	#Hamilton	
-    "15776",	#Sprankle Mills	
+    "15776",	#Sprankle Mills
+    "15823",    #Brockport
+    "15828",    #Clarington
+    "15853",    #Ridgway
+    "16222",    #Dayton
 }
 
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
