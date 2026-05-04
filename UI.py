@@ -1191,14 +1191,20 @@ class App(tk.Tk):
         try:
             idx = int(tag)
         except Exception:
-            idx = tag
+           idx = tag
         row = self.df.loc[idx]
+
+        if hasattr(self, "current_selected_window"):
+            if self.current_selected_window and self.current_selected_window.winfo_exists():
+                self.current_selected_window.destroy()
 
         #window header of property address
         win = tk.Toplevel(self)
+        self.current_selected_window = win
         self.open_windows.append(win)
         self.ApplyThemeToWindow(win)
-        win.title(f"Property Address: {row.get('Property Address Number:', '')} {row.get('Property Address Street Name:', '')}")
+        win.current_idx = idx
+        win.title(f"Property Address: {row.get('Property Address Number', '')} {row.get('Property Address Street Name', '')}")
         fonts = self.CurrentFonts()
         win.attributes('-topmost',True)
         win.geometry(f"{self.ScaleValue(800, 640)}x{self.ScaleValue(600, 480)}")
@@ -2165,7 +2171,19 @@ class App(tk.Tk):
         ttk.Button(btnfrm, text="Save", command=OnSave).pack(side="right", padx=6)
         ttk.Button(btnfrm, text="Cancel", command=OnCancel).pack(side="right", padx=6)
     #  Add note helper 
-    def AddNote(self, idx, parent_win=None):
+    def AddRemoveNote(self, idx, parent_win=None):
+            top = tk.Toplevel(self)
+            top.title("Add/Remove Note")
+            top.attributes('-topmost',True)
+            top.geometry("280x180")
+            top.minsize(260, 160)
+            top.grab_set()
+
+            ttk.Button(top, text="Add Note", command=lambda:self.AddNote(idx,top)).pack(pady=8)
+            ttk.Button(top, text="Remove Note", command=lambda:self.RemoveNote(idx,top)).pack(pady=8)
+
+    #  Add note helper
+    def AddNote(self, idx, parent_win = None):
         #open dialog box to append note
         try:
             row = self.df.loc[idx]
@@ -2177,6 +2195,7 @@ class App(tk.Tk):
         #build small window for user to type note in
         note_win = tk.Toplevel(self)
         note_win.title("Add Note")
+        note_win.attributes('-topmost',True)
         note_win.geometry(f"{self.ScaleValue(420, 340)}x{self.ScaleValue(220, 190)}")
         try:
             note_win.transient(parent_win or self)
@@ -2190,11 +2209,12 @@ class App(tk.Tk):
         txt = tk.Text(note_win, height=6, width=50)
         txt.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
+    
         #handler to add note
         def OnAdd():
             s = txt.get("1.0", "end").strip()
             if not s:
-                messagebox.showwarning("Empty", "Note is empty.", parent = new_win)
+                messagebox.showwarning("Empty", "Note is empty.", parent = note_win)
                 return
 
             #add timestamp before contents of note
@@ -2236,26 +2256,18 @@ class App(tk.Tk):
             except Exception:
                 pass
             note_win.destroy()
+            # close Add/Remove menu (top)
+            if parent_win and parent_win.winfo_exists():
+                parent_win.destroy()
 
              # reselect row in tree and reopen Selected window
-            if hasattr(self, "_row_ids") and idx in self._row_ids:
-                try:
-                    iid = self._row_ids[idx]
+           # refresh window
+            if hasattr(self, "current_selected_window"):
+                if self.current_selected_window and self.current_selected_window.winfo_exists():
+                    self.current_selected_window.destroy()
 
-                     # destroy old property window first
-                    if parent_win is not None and parent_win.winfo_exists():
-                        parent_win.destroy()
-
-                    # clear old selection and reselect current row
-                    self.tree.selection_remove(self.tree.selection())
-                    self.tree.selection_set(iid)
-                    self.tree.focus(iid)
-                    self.tree.see(iid)
-
-
+            self.Selected(None)
                 
-                except Exception as e:
-                    print("Error reopening Selected window:", e)
 
         #close not window if pressing cancel
         def OnCancel():
@@ -2270,7 +2282,81 @@ class App(tk.Tk):
         btnframe.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Button(btnframe, text="Add", command=OnAdd).pack(side="right", padx=6)
         ttk.Button(btnframe, text="Cancel", command=OnCancel).pack(side="right", padx=6)
+
+    def RemoveNote(self, idx,parent_win = None):
+        try:
+            current = self.df.at[idx, "Notes"]
+        except Exception as e:
+            messagebox.showerror("Error", f"Unable to load notes: {e}", parent = RemNotewin)
+            return
+
+        if pd.isna(current) or not current.strip():
+            messagebox.showinfo("No Notes", "There are no notes to remove.", parent = RemNotewin)
+            return
+
+        notes = current.split("\n\n")
+
+        # window to select note
+        RemNotewin = tk.Toplevel(self)
+        RemNotewin.title("Remove Note")
+        RemNotewin.attributes('-topmost', True)  # keeps window on top
+        RemNotewin.geometry("500x300")
         
+        RemNotewin.transient(parent_win or self)
+        RemNotewin.grab_set()
+        listbox = tk.Listbox(RemNotewin)
+        listbox.pack(fill="both", expand=True, padx=8, pady=8)
+
+        for note in notes:
+            preview = note[:80].replace("\n", " ")
+            listbox.insert("end", preview)
+
+        def OnRemove():
+            sel = listbox.curselection()
+            if not sel:
+                messagebox.showwarning("Select", "Select a note to remove.", parent = RemNotewin)
+                return
+
+            i = sel[0]
+            del notes[i]
+
+            new_text = "\n\n".join(notes) if notes else ""
+            self.df.at[idx, "Notes"] = new_text
+
+            if not self.SaveMainCSV():
+                return
+
+            messagebox.showinfo("Removed", "Note deleted.", parent = RemNotewin)
+            try:
+                RemNotewin.grab_release()
+            except:
+                pass
+            RemNotewin.destroy()
+            # close Add/Remove menu (top)
+            if parent_win and parent_win.winfo_exists():
+                parent_win.destroy()
+
+            # refresh window
+            if hasattr(self, "current_selected_window"):
+                if self.current_selected_window and self.current_selected_window.winfo_exists():
+                    self.current_selected_window.destroy()
+
+            self.Selected(None)
+
+        #close not window if pressing cancel
+        def OnCancel():
+            try:
+                RemNotewin.grab_release()
+            except Exception:
+                pass
+            RemNotewin.destroy()
+
+        RemoveFrame = ttk.Frame(RemNotewin)
+        RemoveFrame.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Button(RemoveFrame, text="Remove", command=OnRemove).pack(side="right", padx=6)
+        ttk.Button(RemoveFrame, text="Cancel", command=OnCancel).pack(side="right", padx=6)
+        
+             
 #  Run App 
 if __name__ == "__main__":
     app = App()
