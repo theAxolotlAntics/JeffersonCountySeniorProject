@@ -390,7 +390,7 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.OnClose)
 
     def ToggleMode(self):
-        self.mode.set("Inventory" if self.mode.get() == "Blight" else "Blight")
+        self.mode.set("Sites(Inventory)" if self.mode.get() == "Blight" else "Blight")
         
         self.RebuildLayout()
         self.ApplyFilters()
@@ -1409,14 +1409,14 @@ class App(tk.Tk):
 
 
 
-        if self.mode.get() == "Inventory": #display information necessary for inventory mode
+        if self.mode.get() == "Sites(Inventory)": #display information necessary for inventory mode
             summary_fields = [
-                ("Parcel ID", "Parcel ID, if known:"),
-                ("Address #", "Property Address Number:"),
-                ("Street", "Property Address Street Name:"),
-                ("City", "City:"),
-                ("Zip", "Zipcode:"),
-                ("Municipality", "Municipality:"),
+                ("Parcel ID", "Parcel ID, if known"),
+                ("Address #", "Property Address Number"),
+                ("Street", "Property Address Street Name"),
+                ("City", "City"),
+                ("Zip", "Zipcode"),
+                ("Municipality", "Municipality"),
             ]
 
             for r, (label, col) in enumerate(summary_fields):
