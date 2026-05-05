@@ -45,18 +45,6 @@ from tkcalendar import Calendar
 from MapModule import create_map, geocode_address, generate_full_map, _save_geocode_cache, _load_geocode_cache, validate
 
 
-
-#mapping
-import folium
-import geopandas as gpd  # for creating the map
-from geopy.geocoders import Nominatim  # for parsing the address into geocoded data
-from geopy.exc import GeocoderTimedOut, GeocoderUnavailable  # error handling for geopy
-from shapely.geometry import Point  # for displaying the pinned location on the map
-
-#map rendering/export automation
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-
 # Define global paths
 BASE_DIR = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "resources" / "cachedMaps"
@@ -388,6 +376,18 @@ class App(tk.Tk):
         #populate treeview
         self.ShowTree(self.df)
         self.protocol("WM_DELETE_WINDOW", self.OnClose)
+    
+    def RegisterWindow(self, win):
+        self.open_windows.append(win)
+
+        def cleanup():
+            try:
+                self.open_windows.remove(win)
+            except ValueError:
+                pass
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", cleanup)
 
     def ToggleMode(self):
         self.mode.set("Sites(Inventory)" if self.mode.get() == "Blight" else "Blight")
@@ -729,7 +729,7 @@ class App(tk.Tk):
         self.modbtn = ttk.Button(self.filter_frame, text="📅", width=3, command=lambda: open_calendar(self.filter_frame, self.mod_date))
         self.modbtn.grid(row=2, column=2, padx=pad_x, pady=pad_y)
 
-
+    
     # This fuction will create a map with all the adresses in the dataframe
     def CreateFullMap(self):
         """Generate the full map and display it with a legend in a Tkinter window."""
@@ -798,7 +798,7 @@ class App(tk.Tk):
         win.geometry("900x600")
         win.lift()
         win.focus_force()
-        self.open_windows.append(win)
+        self.RegisterWindow(win)
 
         # Grid layout
         win.grid_columnconfigure(0, weight=1)  # map expands
@@ -939,20 +939,6 @@ class App(tk.Tk):
 
         for col in columns:
             self.tree.column(col, width=col_width, stretch=True)
-
-    def show(self, text, x, y):
-        if self.tip:
-            self.tip.destroy()
-        self.tip = tk.Toplevel(self.widget)
-        self.tip.wm_overrideredirect(True)
-        self.tip.wm_geometry(f"+{x}+{y}")
-        label = tk.Label(self.tip, text=text, background="lightyellow", relief="solid", borderwidth=1)
-        label.pack()
-
-    def hide(self):
-        if self.tip:
-            self.tip.destroy()
-            self.tip = None
         
     #This function takes the contents of the csv and displays them in an easy-to-read table
     # TreeView
@@ -1047,7 +1033,7 @@ class App(tk.Tk):
 
         #Vacancy Filter
         if self.VacancyFilter.get():
-            df = df[df["Vacant Property:"]]
+            df = df[df["Vacant Property"]]
 
         #Use Filter
         use = self.use_var.get()
@@ -1059,12 +1045,12 @@ class App(tk.Tk):
         #City Filter
         city = self.city_var.get()
         if city != "All":
-            df = df[df["City:"] == city]
+            df = df[df["City"] == city]
 
         #Municipality Filter
         muni = self.muni_var.get()
         if muni != "All":
-            df = df[df["Municipality:"] == muni]
+            df = df[df["Municipality"] == muni]
 
         #Date Range
         if self.from_date.get() or self.to_date.get():
@@ -1081,7 +1067,7 @@ class App(tk.Tk):
         #Zip Code
         zip_code = self.zip_var.get()
         if zip_code != "All":
-            df = df[df["Zipcode:"].astype(str) == zip_code]
+            df = df[df["Zipcode"].astype(str) == zip_code]
 
         #Last Modified Filter
         if self.mod_date.get():
@@ -1179,7 +1165,6 @@ class App(tk.Tk):
         self.ImageIndex = (self.ImageIndex - 1) % len(self.ImageList)
         self.ShowImage()
     
-        
     # This function displays what happens when a row is selected on
         #It displays property details, an image from the csv, and the ability to edit all values or notes
     def Selected(self, event):
@@ -1201,7 +1186,7 @@ class App(tk.Tk):
         #window header of property address
         win = tk.Toplevel(self)
         self.current_selected_window = win
-        self.open_windows.append(win)
+        self.RegisterWindow(win)
         self.ApplyThemeToWindow(win)
         win.current_idx = idx
         win.title(f"Property Address: {row.get('Property Address Number', '')} {row.get('Property Address Street Name', '')}")
@@ -1395,7 +1380,7 @@ class App(tk.Tk):
         infhscroll.grid(row=1, column=0, sticky="ew")
 
         infScrollFrame = ttk.Frame(infcanvas)
-        infScrollFrame.bind("<Configure>", lambda e: infcanvas.configure(scrollregion=canvas.bbox("all")))
+        infScrollFrame.bind("<Configure>", lambda e: infcanvas.configure(scrollregion=infcanvas.bbox("all")))
         infScrollFrame.grid_columnconfigure(0, weight=1)
         infScrollFrame.grid_rowconfigure(0, weight=1)
 
@@ -1672,8 +1657,6 @@ class App(tk.Tk):
         sels = self.tree.selection()
         if not sels:
             messagebox.showwarning("Delete", "No row selected to delete.")
-            self.open_windows.append(messagebox)
-            self.ApplyThemeToWindow(messagebox)
             return
 
         # ask for confirmation
@@ -2080,7 +2063,7 @@ class App(tk.Tk):
                     updates[col] = val
 
             # Required fields - can not be left empty
-            required_fields = [ "City:", "Municipality:","Property Address Number:","Property Address Street Name:"]
+            required_fields = [ "City", "Municipalit","Property Address Number","Property Address Street Name"]
 
             missing = []
 
@@ -2096,7 +2079,7 @@ class App(tk.Tk):
                 )
                 return
 
-            zip_field = "Zipcode:"
+            zip_field = "Zipcode"
             zip_value = controls[zip_field][1].get().strip()
 
             if not zip_value:
@@ -2189,7 +2172,7 @@ class App(tk.Tk):
             row = self.df.loc[idx]
         except Exception as e:
             #if can't find row, abore and tell user
-            messagebox.showerror("Note error", f"Unable to find row {idx}: {e}", parent = new_win )
+            messagebox.showerror("Note error", f"Unable to find row {idx}: {e}", parent = parent_win or self )
             return
 
         #build small window for user to type note in
@@ -2287,11 +2270,11 @@ class App(tk.Tk):
         try:
             current = self.df.at[idx, "Notes"]
         except Exception as e:
-            messagebox.showerror("Error", f"Unable to load notes: {e}", parent = RemNotewin)
+            messagebox.showerror("Error", f"Unable to load notes: {e}", parent = self)
             return
 
         if pd.isna(current) or not current.strip():
-            messagebox.showinfo("No Notes", "There are no notes to remove.", parent = RemNotewin)
+            messagebox.showinfo("No Notes", "There are no notes to remove.", parent = self)
             return
 
         notes = current.split("\n\n")

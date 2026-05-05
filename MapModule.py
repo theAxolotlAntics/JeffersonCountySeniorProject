@@ -1,7 +1,6 @@
 import json
 import logging
 from pathlib import Path
-import math
 from PIL import Image, ImageDraw
 
 import folium
@@ -136,7 +135,6 @@ def _add_legend(folium_map: folium.Map, status_color_map: dict) -> None:
     folium_map.get_root().add_child(macro)
 
 def crop_to_bounds(png_path):
-    from PIL import Image
 
     img = Image.open(png_path)
     width, height = img.size
@@ -156,7 +154,7 @@ def crop_to_bounds(png_path):
     cropped.save(png_path)
 
 # Reuse a single Nominatim instance (respect API usage)
-GEOLocator = Nominatim(user_agent="Jefferson County Property Viwer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject", timeout=5)
+GEOLocator = Nominatim(user_agent="Jefferson County Property Viewer/0.7.1 (https://github.com/theAxolotlAntics/JeffersonCountySeniorProject)", timeout=5)
 
 # imma be honest, this is beyond me, this and the renderer are both the horrible, disfigured brainchildren of stealing stuff from stackoverflow and the like
 def get_chromium_path():
@@ -278,8 +276,7 @@ def create_map(clean_address: str, ID: str, cache, status: str, force_refresh: b
 
     # geocode the address and add pin if successful
     pin = geocode_address(clean_address, label=ID, cache=cache, status=status)
-    status_colors = {"blight": "green", "res": "red", "com": "beige", }
-    color = status_colors.get(status, "blue")  # default if status is None
+    color = status_colors.get(status, "black")
     if pin is not None:
         lon, lat = pin["lon"], pin["lat"] 
         
@@ -359,7 +356,7 @@ def generate_full_map(geocode_cache, silent=True, force_refresh=False):
 
         # Skip invalid or failed geocodes
         if not coords or "lon" not in coords or "lat" not in coords:
-            print("Skipping invalid geocode entry:", addr, coords)
+            logger.warning("Skipping invalid geocode entry: %s %s", addr, coords)
             continue
 
         safe_name = re.sub(r"[^A-Za-z0-9_]", "_", addr)
