@@ -15,7 +15,7 @@
   },
   {
    "optionDest": "console",
-   "value": true
+   "value": false
   },
   {
    "optionDest": "icon_file",
@@ -38,6 +38,10 @@
    "value": false
   },
   {
+   "optionDest": "hide_console",
+   "value": "hide-early"
+  },
+  {
    "optionDest": "disable_windowed_traceback",
    "value": false
   },
@@ -56,10 +60,6 @@
   {
    "optionDest": "bootloader_ignore_signals",
    "value": false
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/satur/OneDrive - Pennsylvania Western University/JeffersonCountySeniorProject/resources;resources/"
   },
   {
    "optionDest": "datas",
@@ -96,10 +96,14 @@
   {
    "optionDest": "datas",
    "value": "C:/Users/satur/AppData/Local/Programs/Python/Python313/Lib/tkinter;tkinter/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/satur/OneDrive - Pennsylvania Western University/JeffersonCountySeniorProject/resources;resources/"
   }
  ],
  "nonPyinstallerOptions": {
-  "increaseRecursionLimit": true,
+  "increaseRecursionLimit": false,
   "manualArguments": ""
  }
 }

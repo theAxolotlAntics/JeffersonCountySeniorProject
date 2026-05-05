@@ -268,7 +268,9 @@ if "Property Address Number" in Originaldf.columns:
     Originaldf["Property Address Number"] = (
         Originaldf["Property Address Number"]
         .apply(normalize_address_number)
+        .astype("Int64") 
     )
+
 
 
 for col in date_cols:

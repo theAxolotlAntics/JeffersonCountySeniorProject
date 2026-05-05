@@ -41,7 +41,9 @@ to seee what happens
 
 [2025-11-20 10:28:06] Note"
 1.0,DG005,,,clara.kim@example.com,Clara,Kim,,PA-JEF-005,270.0,W. Liberty,Sykesville,15865,Sykesville Borough,True,False,False,False,Free-standing,Uninhabitable;,Broken windows;,Poor,,Yes,Missing pieces,Cracked siding,Wood,Broken,Collapsed,Boarded,Major cracks,Overgrowth,Suitably unsound,Yes,Clara Kim,clara.kim@example.com,,
-0.0,DG006,,,david.park@example.com,David,Park,2023-07-26,PA-JEF-006,848.0,Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,False,True,False,False,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,David Park,david.park@example.com,,[buzzk] [2026-04-24 13:49:19] test
+0.0,DG006,,,david.park@example.com,David,Park,2023-07-26,PA-JEF-006,848.0,Big Run Prescottville Rd,Reynoldsville,15851,Reynoldsville Borough,False,True,False,False,Free-standing,None;,None;,Good,Intact,,Intact,Intact,Vinyl,Intact,Intact,Intact,Stable,,Sound,No,David Park,david.park@example.com,,"[satur] [2026-05-05 13:33:03] beans
+
+[buzzk] [2026-04-24 13:49:19] test"
 1.0,DG007,2026-03-30,2023-07-13 00:00:00,eva.green@example.com,Eva,Green,2023-07-28,PA-JEF-007,317.0,W Main St,Big Run,15715,Big Run Borough,True,True,True,True,Free-standing,Overgrowth;,Broken windows;,Poor,,Yes,Missing pieces,Cracked siding,Wood,Broken,Collapsed,Boarded,Major cracks,Overgrowth,Suitably unsound,Yes,Eva Green,eva.green@example.com,,"[buzzk] [2026-04-24 14:05:21] testing
 
 [2025-11-14 09:51:04] test"
