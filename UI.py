@@ -253,23 +253,23 @@ if not os.path.exists(CSV_PATH):
 Originaldf = pd.read_csv(CSV_PATH)
 date_cols = ["Start time", "Completion time", "Date of Property Review"]
 # --- Normalize Property Address Number into clean integers ---
-def normalize_address_number(val):
-    if pd.isna(val):
-        return None
-    s = str(val).strip()
-
-    # Extract leading digits only (handles "12A", "0045", " 89 ", "12-14", etc.)
-    m = re.match(r"^(\d+)", s)
-    if m:
-        return int(m.group(1))
-    return None
-
-if "Property Address Number" in Originaldf.columns:
-    Originaldf["Property Address Number"] = (
-        Originaldf["Property Address Number"]
-        .apply(normalize_address_number)
-        .astype("Int64") 
-    )
+##def normalize_address_number(val):
+##    if pd.isna(val):
+##        return None
+##    s = str(val).strip()
+##
+##    # Extract leading digits only (handles "12A", "0045", " 89 ", "12-14", etc.)
+##    m = re.match(r"^(\d+)", s)
+##    if m:
+##        return int(m.group(1))
+##    return None
+##
+##if "Property Address Number" in Originaldf.columns:
+##    Originaldf["Property Address Number"] = (
+##        Originaldf["Property Address Number"]
+##        .apply(normalize_address_number)
+##        .astype(str) 
+##    )
 
 
 
@@ -284,7 +284,7 @@ Title = "Jefferson County Property Viewer"
 
 # columns wanted on the main page
 #StreeNum and Address are seperated for ease of filtering
-VisibleColumns = ["ID", "Start time", "Completion time", "Email", "First", "Last", "Date of Property Review",
+VisibleColumns = ["Start time", "Completion time", "Email", "First", "Last", "Date of Property Review",
                       "Parcel ID, if known", "Property Address Number", "Property Address Street Name",
                       "City", "Zipcode", "Municipality", "Property Blighted?", "Commercial", "Residential", "Vacant Property", "Submitter's Name",
                       "Submitter's Information"]
@@ -1347,7 +1347,7 @@ class App(tk.Tk):
         show_image(0)
         # Buttons for editing and notes
         EditBtn = ttk.Button(win, text="Edit Property Values", command=lambda i=idx: self.EditProperty(i, win))
-        NoteBtn = ttk.Button(win, text="Add Note", command=lambda i=idx: self.AddNote(i, win))
+        NoteBtn = ttk.Button(win, text="Add/Remove Note", command=lambda i=idx: self.AddRemoveNote(i, win))
         EditBtn.grid(row=3, column=0, sticky="ew", padx=8, pady=(6, 8))
         NoteBtn.grid(row=3, column=1, sticky="ew", padx=8, pady=(6, 8))
 
@@ -2065,7 +2065,7 @@ class App(tk.Tk):
                     updates[col] = val
 
             # Required fields - can not be left empty
-            required_fields = [ "City", "Municipalit","Property Address Number","Property Address Street Name"]
+            required_fields = [ "City", "Municipality","Property Address Number","Property Address Street Name"]
 
             missing = []
 
@@ -2142,9 +2142,35 @@ class App(tk.Tk):
                     vals = [self.df.at[idx, col] if col in self.df.columns else "" for col in VisibleColumns]
                     vals = [("" if pd.isna(v) else str(v)) for v in vals]
                     self.tree.item(iid, values=vals)
+                    print(len(self.tree["columns"]))
+                    print(len(vals))
+                    print(self.tree["columns"])
+                    print(VisibleColumns)
 
                 messagebox.showinfo("Saved", "Property updated.",parent = edit_win)
                 edit_win.destroy()
+                if hasattr(self, "_row_ids") and idx in self._row_ids:
+
+                    iid = self._row_ids[idx]
+
+                    # clear old selections
+                    self.tree.selection_remove(self.tree.selection())
+
+                    # select updated row
+                    self.tree.selection_set(iid)
+
+                    # focus row
+                    self.tree.focus(iid)
+
+                    # scroll to row
+                    self.tree.see(iid)
+
+                    # Reopen Selected window
+                    if hasattr(self, "current_selected_window"):
+                        if self.current_selected_window and self.current_selected_window.winfo_exists():
+                            self.current_selected_window.destroy()
+
+                    self.Selected(None)
 
             except Exception as e:
                 messagebox.showerror("Update error", f"Failed: {e}")
